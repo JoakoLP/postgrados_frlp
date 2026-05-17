@@ -23,6 +23,7 @@
 |---------------------|------------------------------|---------------------------------|--------------------------------|
 | Takara Joaquin      | A definir                    | [@joakolp](https://github.com/joakolp) | joakotakara@gmail.com           |
 | Veliz Ruben | Por definirse | [@Ruvcon](https://github.com/Ruvcon) | velcon047@gmail.com           |
+| Pagani Franco | Por definirse | [@FrancoPagani](https://github.com/FrancoPagani) | francopaganiutn@gmail.com           |
 | Nombre Compañero 1  | Desarrollador Backend        | [@usuario2](https://github.com/usuario2)   | email2@ejemplo.com            |
 | Nombre Compañero 2  | Diseñador / Frontend         | [@usuario3](https://github.com/usuario3)   | email3@ejemplo.com            |
 

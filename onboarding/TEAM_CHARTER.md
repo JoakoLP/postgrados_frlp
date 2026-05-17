@@ -16,9 +16,9 @@
 | Nombre | Semanas 1-4 | Semanas 5-8 | Semanas 9-12 | Semanas 13-16 |
 |--------|:-----------:|:-----------:|:------------:|:--------------:|
 | | Product Owner | Tech Lead | Dev Lead | QA/UX |
-| | Tech Lead | Dev Lead | QA/UX | Product Owner |
-| | Dev Lead | QA/UX | Product Owner | Tech Lead |
-| | QA/UX | Product Owner | Tech Lead | Dev Lead |
+| Veliz Ruben | Tech Lead | Dev Lead | QA/UX | Product Owner |
+| Takara Joaquin | Dev Lead | QA/UX | Product Owner | Tech Lead |
+| Pagani Franco | QA/UX | Product Owner | Tech Lead | Dev Lead |
 
 ---
 
@@ -63,6 +63,6 @@
 **Commit sugerido:** `docs: team charter firmado por [N1], [N2], [N3], [N4]`
 
 - [ ] [Nombre 1] — Product Owner
-- [ ] [Nombre 2] — Tech Lead
+- [ Veliz Ruben ] [Nombre 2] — Tech Lead
 - [ ] [Nombre 3] — Dev Lead
 - [ ] [Nombre 4] — QA/UX Lead

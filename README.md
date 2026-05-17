@@ -21,7 +21,6 @@
 
 | Nombre              | Rol                          | GitHub                          | Email                          |
 |---------------------|------------------------------|---------------------------------|--------------------------------|
-| Takara Joaquin           | - | [@joakolp](https://github.com/joakolp) | joakotakara@gmail.com           |
 | Tu Nombre           | Líder / Desarrollador Principal | [@tuusuario](https://github.com/tuusuario) | tuemail@ejemplo.com           |
 | Nombre Compañero 1  | Desarrollador Backend        | [@usuario2](https://github.com/usuario2)   | email2@ejemplo.com            |
 | Nombre Compañero 2  | Diseñador / Frontend         | [@usuario3](https://github.com/usuario3)   | email3@ejemplo.com            |

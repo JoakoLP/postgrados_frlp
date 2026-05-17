@@ -1,13 +1,13 @@
-# Team Charter — [Nombre del Equipo]
+# Team Charter — OptimaSys
 
 **Módulo asignado:** [Core + MOD-B / MOD-C / MOD-D]  
-**Fecha:** ___/04/2026 | **Repositorio:** https://github.com/utn-frlp-dev2026/fenix-[equipo]
+**Fecha:** 17/05/2026 | **Repositorio:** https://github.com/JoakoLP/postgrados_frlp
 
 ---
 
 ## 1. Misión del Equipo
 
-"Construir el módulo [X] del sistema Fenix Posgrado para UTN FRLP, que reemplaza el proceso actual de [proceso], reduciendo el tiempo de [X] a [Y]. Nuestro sistema lo usará [quién] para [qué]."
+"Construir el módulo [X] del sistema Fenix Posgrado para UTN FRLP, que reemplaza el proceso actual de Sistema para Posgrado, reduciendo el tiempo de [X] a [Y]. Nuestro sistema lo usará [quién] para [qué]."
 
 ---
 
@@ -24,10 +24,10 @@
 
 ## 3. Acuerdos de Trabajo
 
-**Comunicación:** Discord canal `#[equipo]` | Respuesta máxima: ___ horas hábiles  
-**Daily async:** Todos los días hábiles a las ___ hs · Formato: "✅ Hice | 🔜 Haré | 🚧 Bloqueante"  
-**Reunión semanal:** [Día] a las [hora] por [plataforma] · Máximo 1 hora  
-**Pull Requests:** Necesitan 1 aprobación · Plazo para revisión: ___ horas  
+**Comunicación:** Grupo de WhatsApp y Discord canal `#[desarrollo-de-software, OptimaSys]` | Respuesta máxima: 24 horas hábiles  
+**Daily async:** Daily virtual asíncrono (mensaje de texto en Discord o WhatsApp). · Formato: "✅ Hice | 🔜 Haré | 🚧 Bloqueante"  
+**Reunión semanal:** Domingo a las 15:00hs por Discord · Máximo 1 hora  
+**Pull Requests:** Necesitan 1 aprobación · Plazo para revisión: 24 horas  
 **Conflictos técnicos:** Si no se resuelven en 24hs → consulta al docente (no es rendición)  
 
 ---
@@ -36,11 +36,11 @@
 
 | Capa | Tecnología | Justificación breve |
 |------|-----------|---------------------|
-| Frontend | | |
-| Backend | | |
-| Base de datos | PostgreSQL 15 | |
-| ORM | | |
-| Testing | | |
+| Frontend | React 19 + TypeScript + Vite + TailwindCSS + TanStack Query | Tecnología más demandada, rápida de desarrollar e ideal para ecosistema moderno. Recomendada por el profesor. |
+| Backend | FastAPI (Python 3.12+) | Mucho más simple, rápido, y genera documentación automática (Swagger). Recomendada por el profesor. |
+| Base de datos | PostgreSQL 15 | Excelente rendimiento y ecosistema. Recomendada por el profesor. |
+| ORM | SQLAlchemy 2.0 + Alembic | Estándar maduro y potente para Python con soporte para migraciones. Recomendada por el profesor. |
+| Testing | Pytest + HTTPX | Muy simple y potente para garantizar la cobertura requerida de tests unitarios. Recomendada por el profesor. |
 
 ---
 
@@ -48,7 +48,11 @@
 
 | Riesgo | Prob. | Impacto | Mitigación |
 |--------|:-----:|:-------:|-----------|
-| | | | |
+ Migración de Datos Incompleta/Corrupta | Alta | Alto | Análisis exhaustivo y prueba rigurosa de scripts con datos de muestra. |
+| Requisitos Ambiguos o Incompletos | Media | Alto | Uso de User Stories con Criterios de Aceptación (DoD) y validación temprana. |
+| Ampliación del Alcance (Scope Creep) | Alta | Alto | Definición clara del MVP y priorización rigurosa bajo método MoSCoW. |
+| Rendimiento Inadecuado Bajo Carga | Media | Alto | Diseño de arquitectura escalable, optimización de consultas y caché. |
+
 
 ---
 

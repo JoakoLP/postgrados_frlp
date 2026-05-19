@@ -25,7 +25,7 @@
 | Veliz Ruben | Por definirse | [@Ruvcon](https://github.com/Ruvcon) | velcon047@gmail.com           |
 | Pagani Franco | Por definirse | [@FrancoPagani](https://github.com/FrancoPagani) | francopaganiutn@gmail.com           |
 | Esperanza Franco  | Por definirse        | [@fesperanza99](https://github.com/fesperanza99)   | taatogelp@gmail.com            |
-| Nombre Compañero 1  | Diseñador / Frontend         | [@usuario1](https://github.com/usuario1)   | email1@ejemplo.com            |
+| Goya Campanella Matias  | Por definirse        | [@MatiasGoyaCampanella](https://github.com/MatiasGoyaCampanella)   | goya.utn@gmail.com            |
 
 ### Reglas básicas del equipo
 

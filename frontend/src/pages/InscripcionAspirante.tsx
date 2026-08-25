@@ -18,7 +18,7 @@ export default function InscripcionAspirante() {
     const archivoBeca = watch('archivo_beca');
     const archivoPosgrado = watch('archivo_posgrado');
     const solicitaBeca = watch('solicita_beca', false);
-    const tituloPosgrado = watch('titulo_posgrado', ''); // Observa si ingresó un título de posgrado
+    const tituloPosgrado = watch('titulo_posgrado', '');
 
     // Función validadora de PDFs
     const validarPDF = (archivos: FileList, esObligatorio: boolean) => {
@@ -44,7 +44,7 @@ export default function InscripcionAspirante() {
         let camposAValidar: string[] = [];
 
         if (pasoActual === 1) {
-            camposAValidar = ['carrera', 'dni', 'nombre', 'apellido', 'email', 'telefono_movil'];
+            camposAValidar = ['carreras', 'dni', 'nombre', 'apellido', 'email', 'telefono_movil'];
         } else if (pasoActual === 2) {
             camposAValidar = ['nacionalidad', 'domicilio', 'ciudad', 'provincia', 'pais', 'como_conocio', 'titulo_grado', 'motivacion'];
         }
@@ -91,18 +91,40 @@ export default function InscripcionAspirante() {
                     {/* ================= PASO 1 ================= */}
                     <div className={`space-y-4 animate-fade-in ${pasoActual === 1 ? 'block' : 'hidden'}`}>
                         <div>
-                            <label htmlFor="carrera" className="block text-sm font-semibold mb-1">Carrera <span className="text-red-500">*</span></label>
-                            <select
-                                id="carrera"
-                                {...register('carrera', { required: 'Seleccioná una carrera' })}
-                                className="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-slate-500 outline-none"
-                            >
-                                <option value="">Seleccionar</option>
-                                <option value="Especialización">Especialización</option>
-                                <option value="Maestría">Maestría</option>
-                                <option value="Doctorado">Doctorado</option>
-                            </select>
-                            {errors.carrera && <span className="text-red-500 text-xs">{errors.carrera.message as string}</span>}
+                            <label className="block text-sm font-semibold mb-2">Carrera/s (Máx. 2) <span className="text-red-500">*</span></label>
+                            <div className="flex flex-col gap-2 bg-slate-50 p-3 border border-slate-200 rounded">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        value="Especialización"
+                                        {...register('carreras', {
+                                            required: 'Seleccioná al menos una carrera',
+                                            validate: (value) => value.length <= 2 || 'Podés elegir hasta 2 carreras máximo'
+                                        })}
+                                        className="w-4 h-4 text-[#2a3441] focus:ring-[#2a3441] cursor-pointer"
+                                    />
+                                    Especialización
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        value="Maestría"
+                                        {...register('carreras')}
+                                        className="w-4 h-4 text-[#2a3441] focus:ring-[#2a3441] cursor-pointer"
+                                    />
+                                    Maestría
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        value="Doctorado"
+                                        {...register('carreras')}
+                                        className="w-4 h-4 text-[#2a3441] focus:ring-[#2a3441] cursor-pointer"
+                                    />
+                                    Doctorado
+                                </label>
+                            </div>
+                            {errors.carreras && <span className="text-red-500 text-xs mt-1 block">{errors.carreras.message as string}</span>}
                         </div>
 
                         <div>
@@ -325,7 +347,6 @@ export default function InscripcionAspirante() {
                             {errors.archivo_partida && <span className="text-red-500 text-xs text-right mt-1">{errors.archivo_partida.message as string}</span>}
                         </div>
 
-                        {/* Muestra el upload de Título de Posgrado solo si completó el campo de texto en el Paso 2 */}
                         {tituloPosgrado && tituloPosgrado.trim() !== '' && (
                             <div className="flex flex-col">
                                 <div className="flex justify-between items-center">

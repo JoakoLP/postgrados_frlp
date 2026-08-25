@@ -44,7 +44,7 @@ export default function InscripcionAspirante() {
         let camposAValidar: string[] = [];
 
         if (pasoActual === 1) {
-            camposAValidar = ['carreras', 'dni', 'nombre', 'apellido', 'email', 'telefono_movil'];
+            camposAValidar = ['carreras', 'dni', 'nombre', 'apellido', 'email', 'email_alternativo', 'telefono_movil'];
         } else if (pasoActual === 2) {
             camposAValidar = ['nacionalidad', 'domicilio', 'ciudad', 'provincia', 'pais', 'como_conocio', 'titulo_grado', 'motivacion'];
         }
@@ -163,15 +163,27 @@ export default function InscripcionAspirante() {
                             {errors.apellido && <span className="text-red-500 text-xs">{errors.apellido.message as string}</span>}
                         </div>
 
-                        <div>
-                            <label htmlFor="email" className="block text-sm font-semibold mb-1">Email <span className="text-red-500">*</span></label>
-                            <input
-                                id="email"
-                                type="email"
-                                {...register('email', { required: 'El email es obligatorio' })}
-                                className="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-slate-500 outline-none"
-                            />
-                            {errors.email && <span className="text-red-500 text-xs">{errors.email.message as string}</span>}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="email" className="block text-sm font-semibold mb-1">Email <span className="text-red-500">*</span></label>
+                                <input
+                                    id="email"
+                                    type="email"
+                                    {...register('email', { required: 'El email es obligatorio' })}
+                                    className="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-slate-500 outline-none"
+                                />
+                                {errors.email && <span className="text-red-500 text-xs">{errors.email.message as string}</span>}
+                            </div>
+                            <div>
+                                <label htmlFor="email_alternativo" className="block text-sm font-semibold mb-1">Email alternativo <span className="text-red-500">*</span></label>
+                                <input
+                                    id="email_alternativo"
+                                    type="email"
+                                    {...register('email_alternativo', { required: 'El email alternativo es obligatorio' })}
+                                    className="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-slate-500 outline-none"
+                                />
+                                {errors.email_alternativo && <span className="text-red-500 text-xs">{errors.email_alternativo.message as string}</span>}
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

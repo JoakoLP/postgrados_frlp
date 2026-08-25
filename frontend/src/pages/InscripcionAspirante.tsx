@@ -17,6 +17,8 @@ export default function InscripcionAspirante() {
     const archivoPartida = watch('archivo_partida');
     const archivoBeca = watch('archivo_beca');
     const archivoPosgrado = watch('archivo_posgrado');
+    const archivoCuit = watch('archivo_cuit');
+    const archivoPreinscripcion = watch('archivo_preinscripcion');
     const solicitaBeca = watch('solicita_beca', false);
     const tituloPosgrado = watch('titulo_posgrado', '');
 
@@ -291,7 +293,7 @@ export default function InscripcionAspirante() {
                                 rows={3}
                                 {...register('motivacion', {
                                     required: 'Requerido por el sistema',
-                                    minLength: { value: 50, message: 'Faltan caracteres (50 mín.)' }
+                                    minLength: { value: 50, message: 'Faltan caracteres' }
                                 })}
                                 className="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-slate-500 outline-none"
                             ></textarea>
@@ -304,8 +306,27 @@ export default function InscripcionAspirante() {
 
                         <div className="flex flex-col">
                             <div className="flex justify-between items-center">
+                                <span className="text-sm font-semibold">Formulario de preinscripción firmado <span className="text-red-500">*</span></span>
+                                <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer text-nowrap transition-colors">
+                                    <span>+</span> {archivoPreinscripcion && archivoPreinscripcion.length > 0 ? 'Cambiar archivo' : 'Cargar archivo'}
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        accept=".pdf"
+                                        {...register('archivo_preinscripcion', {
+                                            validate: (value) => validarPDF(value, true)
+                                        })}
+                                    />
+                                </label>
+                            </div>
+                            {archivoPreinscripcion && archivoPreinscripcion.length > 0 && !errors.archivo_preinscripcion && <span className="text-sm text-green-600 mt-1">✓ {archivoPreinscripcion[0].name}</span>}
+                            {errors.archivo_preinscripcion && <span className="text-red-500 text-xs text-right mt-1">{errors.archivo_preinscripcion.message as string}</span>}
+                        </div>
+
+                        <div className="flex flex-col">
+                            <div className="flex justify-between items-center">
                                 <span className="text-sm font-semibold">DNI / Pasaporte <span className="text-red-500">*</span></span>
-                                <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer transition-colors">
+                                <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer text-nowrap transition-colors">
                                     <span>+</span> {archivoDni && archivoDni.length > 0 ? 'Cambiar archivo' : 'Cargar archivo'}
                                     <input
                                         type="file"
@@ -324,7 +345,7 @@ export default function InscripcionAspirante() {
                         <div className="flex flex-col">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-semibold">Copia título de grado <span className="text-red-500">*</span></span>
-                                <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer transition-colors">
+                                <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer text-nowrap transition-colors">
                                     <span>+</span> {archivoTitulo && archivoTitulo.length > 0 ? 'Cambiar archivo' : 'Cargar archivo'}
                                     <input
                                         type="file"
@@ -343,7 +364,7 @@ export default function InscripcionAspirante() {
                         <div className="flex flex-col">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-semibold">Partida de nacimiento <span className="text-red-500">*</span></span>
-                                <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer transition-colors">
+                                <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer text-nowrap transition-colors">
                                     <span>+</span> {archivoPartida && archivoPartida.length > 0 ? 'Cambiar archivo' : 'Cargar archivo'}
                                     <input
                                         type="file"
@@ -359,13 +380,32 @@ export default function InscripcionAspirante() {
                             {errors.archivo_partida && <span className="text-red-500 text-xs text-right mt-1">{errors.archivo_partida.message as string}</span>}
                         </div>
 
+                        <div className="flex flex-col">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-semibold">Constancia CUIT/CUIL <span className="text-red-500">*</span></span>
+                                <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer text-nowrap transition-colors">
+                                    <span>+</span> {archivoCuit && archivoCuit.length > 0 ? 'Cambiar archivo' : 'Cargar archivo'}
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        accept=".pdf"
+                                        {...register('archivo_cuit', {
+                                            validate: (value) => validarPDF(value, true)
+                                        })}
+                                    />
+                                </label>
+                            </div>
+                            {archivoCuit && archivoCuit.length > 0 && !errors.archivo_cuit && <span className="text-sm text-green-600 mt-1">✓ {archivoCuit[0].name}</span>}
+                            {errors.archivo_cuit && <span className="text-red-500 text-xs text-right mt-1">{errors.archivo_cuit.message as string}</span>}
+                        </div>
+
                         {tituloPosgrado && tituloPosgrado.trim() !== '' && (
                             <div className="flex flex-col">
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm font-semibold">
                                         Título de posgrado <span className="text-red-500">*</span>
                                     </span>
-                                    <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer transition-colors">
+                                    <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer text-nowrap transition-colors">
                                         <span>+</span> {archivoPosgrado && archivoPosgrado.length > 0 ? 'Cambiar archivo' : 'Cargar archivo'}
                                         <input
                                             type="file"
@@ -388,7 +428,7 @@ export default function InscripcionAspirante() {
                                     <span className="text-sm font-semibold">
                                         Formulario de beca <span className="text-red-500">*</span>
                                     </span>
-                                    <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer transition-colors">
+                                    <label className="bg-[#2a3441] hover:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer text-nowrap transition-colors">
                                         <span>+</span> {archivoBeca && archivoBeca.length > 0 ? 'Cambiar archivo' : 'Cargar archivo'}
                                         <input
                                             type="file"
@@ -412,7 +452,7 @@ export default function InscripcionAspirante() {
                             <button
                                 type="button"
                                 onClick={retrocederPaso}
-                                className="px-8 py-2 border-2 border-slate-800 rounded font-bold hover:bg-slate-50 transition-colors"
+                                className="px-8 py-2 border-2 border-slate-800 rounded font-bold cursor-pointer hover:bg-slate-50 transition-colors"
                             >
                                 Atras
                             </button>
@@ -422,7 +462,7 @@ export default function InscripcionAspirante() {
                             <button
                                 type="button"
                                 onClick={avanzarPaso}
-                                className="px-8 py-2 border-2 border-slate-800 rounded font-bold hover:bg-slate-50 transition-colors"
+                                className="px-8 py-2 border-2 border-slate-800 rounded font-bold cursor-pointer hover:bg-slate-50 transition-colors"
                             >
                                 Siguiente
                             </button>
@@ -430,7 +470,7 @@ export default function InscripcionAspirante() {
                             <button
                                 type="button"
                                 onClick={handleSubmit(onSubmit)}
-                                className="px-8 py-2 border-2 border-slate-800 rounded font-bold hover:bg-slate-50 transition-colors"
+                                className="px-8 py-2 border-2 border-slate-800 rounded font-bold cursor-pointer hover:bg-slate-50 transition-colors"
                             >
                                 Finalizar
                             </button>

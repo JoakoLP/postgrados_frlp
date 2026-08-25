@@ -1,6 +1,11 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
+
 export default function GestionDocente() {
+    useEffect(() => {
+        document.title = "Gestión Docente | Sistema de Posgrado";
+    }, []);
     const estudiantes = [
         { id: 1, nombre: "Takara, Joaquin", asistencias: [true, true, true], nota: "6.5" },
         { id: 2, nombre: "Pagani, Franco", asistencias: [true, false, true], nota: "7" },
@@ -10,7 +15,7 @@ export default function GestionDocente() {
     ];
 
     return (
-        // Faltan pulir estilos y funcionalidades. Falta búsqueda de alumno por dni o apellido y otras características solicitadas en REQ-CORE-004
+        // Faltan pulir estilos y funcionalidades.
         <div className="flex flex-col flex-grow bg-white font-sans text-slate-800 p-8">
             <main className="max-w-4xl mx-auto w-full flex-grow">
                 <div className="text-center mb-10">

@@ -12,6 +12,15 @@ export default function CoordinatorLayout() {
 
                 <nav className="flex-1 p-4 space-y-2">
                     <NavLink
+                        to="/coordinador/legajos"
+                        className={({ isActive }) =>
+                            `block px-4 py-3 rounded transition-colors ${isActive ? 'bg-slate-700 font-bold border-l-4 border-white' : 'hover:bg-slate-700/50 border-l-4 border-transparent'}`
+                        }
+                    >
+                        Gestión de Legajos
+                    </NavLink>
+
+                    <NavLink
                         to="/coordinador/panel"
                         className={({ isActive }) =>
                             `block px-4 py-3 rounded transition-colors ${isActive ? 'bg-slate-700 font-bold border-l-4 border-white' : 'hover:bg-slate-700/50 border-l-4 border-transparent'}`
@@ -29,6 +38,7 @@ export default function CoordinatorLayout() {
                         Gestión Docente
                     </NavLink>
                 </nav>
+
             </aside>
 
             {/* Contenido de Coordinador */}

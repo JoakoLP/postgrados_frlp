@@ -6,7 +6,7 @@ import CoordinadorLayout from './layouts/CoordinadorLayout';
 import InscripcionAspirante from './pages/InscripcionAspirante';
 import PanelConduccion from './pages/PanelConduccion';
 import GestionDocente from './pages/GestionDocente';
-// import DashboardCoordinador from './pages/DashboardCoordinador';
+import GestionLegajos from './pages/GestionLegajos';
 
 const NotFound = () => <div className="p-10 text-xl text-red-500 text-center mt-10">404 - Página no encontrada</div>;
 
@@ -15,15 +15,13 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<MainLayout />}>
-
           {/* Vistas Públicas */}
           <Route path="/" element={<Navigate to="/inscripcion" replace />} />
           <Route path="/inscripcion" element={<InscripcionAspirante />} />
-
           {/* Vistas Privadas (Coordinador) anidadas en su propio Layout */}
           <Route path="/coordinador" element={<CoordinadorLayout />}>
-            <Route index element={<Navigate to="panel" replace />} />
-            {/* <Route index element={<DashboardCoordinador />} /> */}
+            <Route index element={<Navigate to="legajos" replace />} />
+            <Route path="legajos" element={<GestionLegajos />} />
             <Route path="panel" element={<PanelConduccion />} />
             <Route path="gestion-docente" element={<GestionDocente />} />
           </Route>

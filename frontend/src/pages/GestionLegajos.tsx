@@ -55,6 +55,7 @@ export default function GestionLegajos() {
                 const actualizado = { ...asp, estado: nuevoEstado };
 
                 // Si se aprueba (pasa a Completado) y no tiene legajo, se genera (RF-CORE-003)
+                // A futuro: Se tomarán los datos de la DB y se generará de forma secuencial
                 if (nuevoEstado === 'Completado' && !asp.numero_legajo) {
                     const secuencial = Math.floor(Math.random() * 100).toString().padStart(3, '0');
                     const añoStr = asp.cohorte.slice(-2);

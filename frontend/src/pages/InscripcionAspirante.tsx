@@ -291,7 +291,7 @@ export default function InscripcionAspirante() {
                                 rows={3}
                                 {...register('motivacion', {
                                     required: 'Requerido por el sistema',
-                                    minLength: { value: 50, message: 'Faltan caracteres' }
+                                    minLength: { value: 50, message: 'Faltan caracteres (50 mín.)' }
                                 })}
                                 className="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-slate-500 outline-none"
                             ></textarea>

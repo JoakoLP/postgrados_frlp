@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -27,6 +27,10 @@ ChartJS.register(
 
 export default function PanelConduccion() {
     const [cohorteSeleccionada, setCohorteSeleccionada] = useState("Todas");
+
+    useEffect(() => {
+        document.title = "Panel de Conducción | Sistema de Posgrado";
+    }, []);
 
     // Obtenemos los datos basados en el filtro de la cohorte
     const datosActuales = mockEstadisticas[cohorteSeleccionada] || mockEstadisticas["Todas"];

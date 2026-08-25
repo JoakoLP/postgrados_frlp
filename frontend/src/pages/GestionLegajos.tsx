@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 // Tipos para nuestro mock
-type EstadoLegajo = 'Pendiente' | 'En Revisión' | 'Observado' | 'Completado' | 'Activo';
+type EstadoLegajo = 'Pendiente' | 'En Revisión' | 'Observado' | 'Completado' | 'Activo' | 'Baja';
 
 interface Aspirante {
     id: string;
@@ -21,6 +21,7 @@ const mockAspirantes: Aspirante[] = [
     { id: '2', nombre: 'Lucas', apellido: 'Martínez', dni: '35123456', carrera: 'Especialización', cohorte: '2026', beca: false, estado: 'En Revisión' },
     { id: '3', nombre: 'Sofía', apellido: 'López', dni: '38987654', carrera: 'Doctorado', cohorte: '2025', beca: true, estado: 'Completado', numero_legajo: '25-001-014' },
     { id: '4', nombre: 'Juan', apellido: 'Pérez', dni: '40111222', carrera: 'Maestría', cohorte: '2026', beca: false, estado: 'Observado' },
+    { id: '5', nombre: 'Ana', apellido: 'Gómez', dni: '32555666', carrera: 'Especialización', cohorte: '2025', beca: false, estado: 'Activo', numero_legajo: '25-001-088' },
 ];
 
 export default function GestionLegajos() {
@@ -111,6 +112,8 @@ export default function GestionLegajos() {
                             <option value="En Revisión">En Revisión</option>
                             <option value="Observado">Observado</option>
                             <option value="Completado">Completado</option>
+                            <option value="Activo">Activo</option>
+                            <option value="Baja">Baja</option>
                         </select>
                     </div>
                     <div>
@@ -181,6 +184,8 @@ export default function GestionLegajos() {
                                                 ${asp.estado === 'En Revisión' ? 'bg-blue-100 text-blue-700' : ''}
                                                 ${asp.estado === 'Observado' ? 'bg-red-100 text-red-700' : ''}
                                                 ${asp.estado === 'Completado' ? 'bg-green-100 text-green-700' : ''}
+                                                ${asp.estado === 'Activo' ? 'bg-teal-100 text-teal-700' : ''}
+                                                ${asp.estado === 'Baja' ? 'bg-stone-200 text-stone-700' : ''}
                                             `}>
                                                 {asp.estado}
                                             </span>
@@ -196,6 +201,8 @@ export default function GestionLegajos() {
                                                 <option value="En Revisión">Revisar</option>
                                                 <option value="Observado">Observar</option>
                                                 <option value="Completado">Aprobar</option>
+                                                <option value="Activo">Matricular</option>
+                                                <option value="Baja">Dar de Baja</option>
                                             </select>
                                         </td>
                                     </tr>

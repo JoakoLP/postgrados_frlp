@@ -31,8 +31,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://${DB_USER:-postgrado_user}:${DB_PASSWORD:-cambiar_en_produccion}@db:5432/${DB_NAME:-postgrado_dev}}
+      # La URL del contenedor usa el DNS interno "db", no localhost del host.
+      DATABASE_URL: postgresql://${DB_USER:-postgrado_user}:${DB_PASSWORD:-cambiar_en_produccion}@db:5432/${DB_NAME:-postgrado_dev}
       JWT_SECRET: ${JWT_SECRET:-cambiar_en_produccion_por_secreto_seguro_de_minimo_32_caracteres}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-8h}
       JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
@@ -49,11 +52,11 @@ services:
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     volumes:
-      - backend_uploads:/var/postgrado-storage
+      - backend_uploads:${STORAGE_PATH:-/var/postgrado-storage}
     networks:
       - postgrados_network
 
-  # Servidor de desarrollo Vite; se publica en http://localhost:5173.
+  # Servidor de desarrollo Vite; se publica en http://localhost:3000.
   frontend:
     build:
       context: ./frontend

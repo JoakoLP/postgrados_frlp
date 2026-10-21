@@ -1,111 +1,91 @@
-# docker-compose.yml — Ambiente de desarrollo Fenix Posgrado
-# Ejecutar: docker-compose up -d
-# Detener:  docker-compose down
-# Ver logs: docker-compose logs -f [servicio]
-
-version: '3.9'
-
 services:
-  # ──────────────────────────────────────────
-  # BASE DE DATOS PostgreSQL
-  # ──────────────────────────────────────────
+  # PostgreSQL persiste sus datos en un volumen y reporta salud para ordenar el arranque.
   db:
-    image: postgres:15-alpine
-    container_name: postgrado-db
+    image: postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgrado_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgrado_dev_password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-cambiar_en_produccion}
       POSTGRES_DB: ${DB_NAME:-postgrado_dev}
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./src/core/database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgrado_user} -d ${DB_NAME:-postgrado_dev}"]
-      interval: 10s
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 5s
+    networks:
+      - postgrados_network
 
-  # ──────────────────────────────────────────
-  # BACKEND API
-  # ──────────────────────────────────────────
+  # API FastAPI. El volumen dedicado conserva los archivos subidos fuera del contenedor.
   backend:
     build:
-      context: ./src/core
-      dockerfile: Dockerfile.dev
-    container_name: postgrado-backend
+      context: ./backend
+      dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgrado_user}:${DB_PASSWORD:-postgrado_dev_password}@db:5432/${DB_NAME:-postgrado_dev}
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
-      STORAGE_PATH: /var/postgrado-storage
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${DB_USER:-postgrado_user}:${DB_PASSWORD:-cambiar_en_produccion}@db:5432/${DB_NAME:-postgrado_dev}}
+      JWT_SECRET: ${JWT_SECRET:-cambiar_en_produccion_por_secreto_seguro_de_minimo_32_caracteres}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-8h}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
+      STORAGE_PATH: ${STORAGE_PATH:-/var/postgrado-storage}
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-5}
       SMTP_HOST: ${SMTP_HOST:-mailhog}
       SMTP_PORT: ${SMTP_PORT:-1025}
-      NODE_ENV: development
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@posgrado.frlp.utn.edu.ar}
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-8000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:${PORT:-8000}"
     volumes:
-      - ./src:/app/src
-      - postgrado-storage:/var/postgrado-storage
-      - /app/node_modules  # Evita sobreescribir node_modules del container
-    command: npm run dev  # Hot reload en desarrollo
+      - backend_uploads:/var/postgrado-storage
+    networks:
+      - postgrados_network
 
-  # ──────────────────────────────────────────
-  # FRONTEND
-  # ──────────────────────────────────────────
+  # Servidor de desarrollo Vite; se publica en http://localhost:5173.
   frontend:
     build:
-      context: ./src/frontend
-      dockerfile: Dockerfile.dev
-    container_name: postgrado-frontend
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
     restart: unless-stopped
     depends_on:
       - backend
     environment:
-      VITE_API_URL: http://localhost:8000/api/v1
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
     ports:
-      - "3000:3000"
-    volumes:
-      - ./src/frontend/src:/app/src
-      - /app/node_modules
+      - "3000:5173"
+    networks:
+      - postgrados_network
 
-  # ──────────────────────────────────────────
-  # MAILHOG — Servidor de email falso para desarrollo
-  # Ver emails en: http://localhost:8025
-  # ──────────────────────────────────────────
+  # SMTP simulado de desarrollo; UI disponible en http://localhost:8025.
   mailhog:
-    image: mailhog/mailhog:latest
-    container_name: postgrado-mailhog
+    image: mailhog/mailhog:v1.0.1
+    restart: unless-stopped
     ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # UI web para ver emails
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - postgrados_network
 
 volumes:
-  pgdata:
-    name: postgrado-pgdata
-  postgrado-storage:
-    name: postgrado-storage
+  # Datos de PostgreSQL y archivos adjuntos.
+  postgres_data:
+  backend_uploads:
 
-# ──────────────────────────────────────────────────────────────
-# INSTRUCCIONES DE USO
-#
-# Primera vez:
-#   cp .env.example .env
-#   docker-compose up -d
-#   docker exec postgrado-backend npm run db:migrate
-#   docker exec postgrado-backend npm run db:seed  # Datos de prueba
-#
-# Ver emails enviados por el sistema:
-#   Abrir http://localhost:8025
-#
-# Acceder a la base de datos:
-#   docker exec -it postgrado-db psql -U postgrado_user -d postgrado_dev
-#
-# Si algo no funciona:
-#   docker-compose down && docker-compose up -d --build
-# ──────────────────────────────────────────────────────────────
+networks:
+  # Red interna compartida; los servicios se resuelven por nombre (por ejemplo, "db").
+  postgrados_network:
+    name: postgrados_network
+    driver: bridge

@@ -14,6 +14,7 @@ Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ### Added
 - Estructura inicial del repositorio
 - Documentación base: SRS, PRD, BFD, Arquitectura, Cronograma
+- Dependencias para recibir formularios multipart y validar direcciones de email en el backend
 
 ---
 

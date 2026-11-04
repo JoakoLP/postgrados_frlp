@@ -5,4 +5,4 @@ class Base(DeclarativeBase):
     pass
 
 
-from src.inscripcion.infrastructure.models import Cohorte, DocumentoInscripcion, Legajo
+from src.inscripcion.infrastructure import models as _inscripcion_models

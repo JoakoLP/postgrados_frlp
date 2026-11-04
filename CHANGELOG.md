@@ -16,6 +16,7 @@ Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 - Documentación base: SRS, PRD, BFD, Arquitectura, Cronograma
 - Dependencias para recibir formularios multipart y validar direcciones de email en el backend
 - Modelos y migración inicial para cohortes, legajos y metadatos de documentos de inscripción
+- Endpoint público de inscripción con validación de datos, unicidad por cohorte y almacenamiento privado de PDFs
 
 ---
 

@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     secret_key: str = "dev-only-change-this-secret"
     environment: str = "development"
     cors_origin: str = "http://localhost:3000"
+    storage_path: Path = Path(__file__).resolve().parents[2] / "storage"
+    max_file_size_mb: int = 5
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parents[2] / ".env",

@@ -18,6 +18,7 @@ Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 - Modelos y migración inicial para cohortes, legajos y metadatos de documentos de inscripción
 - Endpoint público de inscripción con validación de datos, unicidad por cohorte y almacenamiento privado de PDFs
 - Formulario web conectado al endpoint de inscripción, con selección de beca, errores del servidor y código de seguimiento
+- Punto de entrada FastAPI ubicado en `backend/main.py`, de acuerdo con la arquitectura del backend
 
 ---
 

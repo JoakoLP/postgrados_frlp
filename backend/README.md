@@ -7,11 +7,15 @@ API REST de inscripción implementada con FastAPI, SQLAlchemy y PostgreSQL.
 Desde la carpeta `backend`:
 
 ```powershell
-python -m pip install -r requirements.txt
+python -m pip install -e ".[dev]"
 $env:DATABASE_URL = "postgresql+psycopg2://postgrado_user:cambiar_en_produccion@localhost:5432/postgrado_dev"
 alembic upgrade head
-uvicorn src.main:app --reload
+backend
 ```
+
+El comando `backend` inicia la aplicación desde `main.py` y activa la recarga
+automática cuando `ENVIRONMENT=development`. Para iniciar Uvicorn manualmente,
+ejecutar `uvicorn main:app --reload` desde la carpeta `backend`.
 
 La migración inicial crea las tablas de cohortes, legajos y documentos, y abre la
 cohorte 2026 para desarrollo. En Docker, `STORAGE_PATH` configura el directorio

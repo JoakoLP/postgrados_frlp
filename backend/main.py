@@ -1,3 +1,6 @@
+import os
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -25,3 +28,12 @@ app.include_router(inscripcion_router)
 @app.get("/health", tags=["health"])
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+def main() -> None:
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "8000")),
+        reload=settings.environment == "development",
+    )

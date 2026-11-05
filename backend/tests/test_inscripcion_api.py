@@ -12,7 +12,7 @@ from src.core.config import settings
 from src.db.base import Base
 from src.db.session import get_db
 from src.inscripcion.infrastructure.models import Cohorte, DocumentoInscripcion, Legajo
-from src.main import app
+from main import app
 
 PDF = b"%PDF-1.4\ncontenido de prueba\n%%EOF"
 DOCUMENT_FIELDS = {

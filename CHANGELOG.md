@@ -20,6 +20,7 @@ Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 - Formulario web conectado al endpoint de inscripción, con selección de beca, errores del servidor y código de seguimiento
 - Punto de entrada FastAPI ubicado en `backend/main.py`, de acuerdo con la arquitectura del backend
 - Reglas de Git para excluir archivos de bytecode de Python del repositorio
+- Reglas de exclusión centralizadas en el `.gitignore` raíz y agrupadas por capa
 
 ---
 

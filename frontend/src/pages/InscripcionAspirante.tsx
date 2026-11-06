@@ -1,29 +1,94 @@
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch, type FieldPath } from 'react-hook-form';
+
+type InscripcionValues = {
+    carreras: ('Especialización' | 'Maestría' | 'Doctorado')[];
+    dni: string;
+    nombre: string;
+    apellido: string;
+    nacionalidad: string;
+    email: string;
+    email_alternativo: string;
+    telefono_movil: string;
+    telefono_fijo?: string;
+    domicilio: string;
+    ciudad: string;
+    provincia: string;
+    pais: string;
+    titulo_grado: string;
+    titulo_posgrado?: string;
+    como_conocio: string;
+    motivacion: string;
+    solicita_beca: boolean;
+    tipo_beca?: '30%' | '100%';
+    archivo_preinscripcion?: FileList;
+    archivo_dni?: FileList;
+    archivo_titulo?: FileList;
+    archivo_partida?: FileList;
+    archivo_cuit?: FileList;
+    archivo_posgrado?: FileList;
+    archivo_beca?: FileList;
+};
+
+type InscripcionResponse = {
+    codigo_seguimiento: string;
+    estado: string;
+    mensaje: string;
+};
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+
+function getApiError(payload: unknown): string {
+    if (typeof payload !== 'object' || payload === null || !('detail' in payload)) {
+        return 'No se pudo completar la inscripción. Intentá nuevamente.';
+    }
+
+    const { detail } = payload;
+    if (typeof detail === 'string') {
+        return detail;
+    }
+    if (Array.isArray(detail)) {
+        const messages = detail.flatMap((item) => {
+            if (typeof item === 'object' && item !== null && 'msg' in item && typeof item.msg === 'string') {
+                return [item.msg];
+            }
+            return [];
+        });
+        if (messages.length > 0) {
+            return messages.join('. ');
+        }
+    }
+    return 'Revisá los datos ingresados e intentá nuevamente.';
+}
 
 export default function InscripcionAspirante() {
     const [pasoActual, setPasoActual] = useState(1);
+    const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
+    const [inscripcionEnviada, setInscripcionEnviada] = useState<InscripcionResponse | null>(null);
 
     useEffect(() => {
         document.title = "Preinscripción 2026 | Sistema de Posgrado";
     }, []);
 
-    const { register, handleSubmit, trigger, watch, formState: { errors } } = useForm({
-        mode: 'onTouched'
+    const { control, register, handleSubmit, trigger, formState: { errors, isSubmitting } } = useForm<InscripcionValues>({
+        mode: 'onTouched',
+        defaultValues: { carreras: [], solicita_beca: false },
+        shouldUnregister: true
     });
 
-    const archivoDni = watch('archivo_dni');
-    const archivoTitulo = watch('archivo_titulo');
-    const archivoPartida = watch('archivo_partida');
-    const archivoBeca = watch('archivo_beca');
-    const archivoPosgrado = watch('archivo_posgrado');
-    const archivoCuit = watch('archivo_cuit');
-    const archivoPreinscripcion = watch('archivo_preinscripcion');
-    const solicitaBeca = watch('solicita_beca', false);
-    const tituloPosgrado = watch('titulo_posgrado', '');
+    const valoresFormulario = useWatch({ control });
+    const archivoDni = valoresFormulario.archivo_dni;
+    const archivoTitulo = valoresFormulario.archivo_titulo;
+    const archivoPartida = valoresFormulario.archivo_partida;
+    const archivoBeca = valoresFormulario.archivo_beca;
+    const archivoPosgrado = valoresFormulario.archivo_posgrado;
+    const archivoCuit = valoresFormulario.archivo_cuit;
+    const archivoPreinscripcion = valoresFormulario.archivo_preinscripcion;
+    const solicitaBeca = valoresFormulario.solicita_beca ?? false;
+    const tituloPosgrado = valoresFormulario.titulo_posgrado ?? '';
 
     // Función validadora de PDFs
-    const validarPDF = (archivos: FileList, esObligatorio: boolean) => {
+    const validarPDF = (archivos: FileList | undefined, esObligatorio: boolean) => {
         if (!archivos || archivos.length === 0) {
             return esObligatorio ? 'Este documento es obligatorio' : true;
         }
@@ -43,15 +108,18 @@ export default function InscripcionAspirante() {
     };
 
     const avanzarPaso = async () => {
-        let camposAValidar: string[] = [];
+        let camposAValidar: FieldPath<InscripcionValues>[] = [];
 
         if (pasoActual === 1) {
             camposAValidar = ['carreras', 'dni', 'nombre', 'apellido', 'email', 'email_alternativo', 'telefono_movil'];
+            if (solicitaBeca) {
+                camposAValidar.push('tipo_beca');
+            }
         } else if (pasoActual === 2) {
             camposAValidar = ['nacionalidad', 'domicilio', 'ciudad', 'provincia', 'pais', 'como_conocio', 'titulo_grado', 'motivacion'];
         }
 
-        const esValido = await trigger(camposAValidar as any);
+        const esValido = await trigger(camposAValidar);
         if (esValido) {
             setPasoActual(prev => Math.min(prev + 1, 3));
         }
@@ -59,17 +127,82 @@ export default function InscripcionAspirante() {
 
     const retrocederPaso = () => setPasoActual(prev => Math.max(prev - 1, 1));
 
-    const onSubmit = (data: any) => {
-        console.log('Formulario completo:', data);
-        alert('Inscripción finalizada con éxito (Revisá la consola)');
+    const onSubmit = async (data: InscripcionValues) => {
+        setErrorEnvio(null);
+        const formulario = new FormData();
+        formulario.append('carreras', JSON.stringify(data.carreras));
+        formulario.append('dni', data.dni);
+        formulario.append('nombre', data.nombre);
+        formulario.append('apellido', data.apellido);
+        formulario.append('nacionalidad', data.nacionalidad);
+        formulario.append('email', data.email);
+        formulario.append('email_alternativo', data.email_alternativo);
+        formulario.append('telefono_movil', data.telefono_movil);
+        formulario.append('domicilio', data.domicilio);
+        formulario.append('ciudad', data.ciudad);
+        formulario.append('provincia', data.provincia);
+        formulario.append('pais', data.pais);
+        formulario.append('titulo_grado', data.titulo_grado);
+        formulario.append('como_conocio', data.como_conocio);
+        formulario.append('motivacion', data.motivacion);
+        formulario.append('solicita_beca', String(data.solicita_beca));
+
+        if (data.telefono_fijo) formulario.append('telefono_fijo', data.telefono_fijo);
+        if (data.titulo_posgrado) formulario.append('titulo_posgrado', data.titulo_posgrado);
+        if (data.tipo_beca) formulario.append('tipo_beca', data.tipo_beca);
+
+        const archivos: [string, FileList | undefined][] = [
+            ['archivo_preinscripcion', data.archivo_preinscripcion],
+            ['archivo_dni', data.archivo_dni],
+            ['archivo_titulo', data.archivo_titulo],
+            ['archivo_partida', data.archivo_partida],
+            ['archivo_cuit', data.archivo_cuit],
+            ['archivo_posgrado', data.archivo_posgrado],
+            ['archivo_beca', data.archivo_beca],
+        ];
+        for (const [campo, lista] of archivos) {
+            if (lista?.[0]) {
+                formulario.append(campo, lista[0]);
+            }
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/inscripciones`, {
+                method: 'POST',
+                body: formulario,
+            });
+            const payload: unknown = await response.json();
+            if (!response.ok) {
+                setErrorEnvio(getApiError(payload));
+                return;
+            }
+            if (
+                typeof payload !== 'object' ||
+                payload === null ||
+                !('codigo_seguimiento' in payload) ||
+                typeof payload.codigo_seguimiento !== 'string' ||
+                !('estado' in payload) ||
+                typeof payload.estado !== 'string' ||
+                !('mensaje' in payload) ||
+                typeof payload.mensaje !== 'string'
+            ) {
+                setErrorEnvio('El servidor respondió con un formato inesperado. Contactá a Posgrado.');
+                return;
+            }
+            setInscripcionEnviada({
+                codigo_seguimiento: payload.codigo_seguimiento,
+                estado: payload.estado,
+                mensaje: payload.mensaje,
+            });
+        } catch {
+            setErrorEnvio('No se pudo conectar con el servidor. Verificá tu conexión e intentá nuevamente.');
+        }
     };
 
     const handleKeyDown = async (e: React.KeyboardEvent<HTMLFormElement>) => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && pasoActual < 3) {
             e.preventDefault();
-            if (pasoActual < 3) {
-                await avanzarPaso();
-            }
+            await avanzarPaso();
         }
     };
 
@@ -88,7 +221,22 @@ export default function InscripcionAspirante() {
                     </h2>
                 </div>
 
-                <form onSubmit={(e) => e.preventDefault()} onKeyDown={handleKeyDown} noValidate className="space-y-5">
+                {inscripcionEnviada ? (
+                    <section role="status" className="rounded border border-green-300 bg-green-50 p-6 text-center">
+                        <h3 className="mb-2 text-xl font-bold text-green-800">Inscripción recibida</h3>
+                        <p>{inscripcionEnviada.mensaje}. El estado inicial es {inscripcionEnviada.estado}.</p>
+                        <p className="mt-4 font-semibold">Código de seguimiento</p>
+                        <p className="break-all font-mono">{inscripcionEnviada.codigo_seguimiento}</p>
+                        <p className="mt-3 text-sm">Guardá este código para consultar tu inscripción.</p>
+                    </section>
+                ) : (
+                    <>
+                    {errorEnvio && (
+                        <div role="alert" className="mb-5 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+                            {errorEnvio}
+                        </div>
+                    )}
+                    <form onSubmit={handleSubmit(onSubmit)} onKeyDown={handleKeyDown} noValidate className="space-y-5">
 
                     {/* ================= PASO 1 ================= */}
                     <div className={`space-y-4 animate-fade-in ${pasoActual === 1 ? 'block' : 'hidden'}`}>
@@ -217,6 +365,23 @@ export default function InscripcionAspirante() {
                                 <div className="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-800"></div>
                             </label>
                         </div>
+                        {solicitaBeca && (
+                            <div>
+                                <label htmlFor="tipo_beca" className="block text-sm font-semibold mb-1">
+                                    Porcentaje de beca solicitado <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    id="tipo_beca"
+                                    {...register('tipo_beca', { required: 'Seleccioná el porcentaje de beca' })}
+                                    className="w-full border border-slate-300 rounded p-2"
+                                >
+                                    <option value="">Seleccione una opción</option>
+                                    <option value="30%">30%</option>
+                                    <option value="100%">100%</option>
+                                </select>
+                                {errors.tipo_beca && <span className="text-red-500 text-xs">{errors.tipo_beca.message}</span>}
+                            </div>
+                        )}
                     </div>
 
                     {/* ================= PASO 2 ================= */}
@@ -468,15 +633,17 @@ export default function InscripcionAspirante() {
                             </button>
                         ) : (
                             <button
-                                type="button"
-                                onClick={handleSubmit(onSubmit)}
-                                className="px-8 py-2 border-2 border-slate-800 rounded font-bold cursor-pointer hover:bg-slate-50 transition-colors"
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="px-8 py-2 border-2 border-slate-800 rounded font-bold cursor-pointer hover:bg-slate-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                Finalizar
+                                {isSubmitting ? 'Enviando...' : 'Finalizar'}
                             </button>
                         )}
                     </div>
-                </form>
+                    </form>
+                    </>
+                )}
             </main>
 
             <footer className="pb-10 flex justify-center mt-auto overflow-visible">

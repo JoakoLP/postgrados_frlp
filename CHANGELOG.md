@@ -14,6 +14,13 @@ Este proyecto sigue [Versionado Semántico](https://semver.org/lang/es/).
 ### Added
 - Estructura inicial del repositorio
 - Documentación base: SRS, PRD, BFD, Arquitectura, Cronograma
+- Dependencias para recibir formularios multipart y validar direcciones de email en el backend
+- Modelos y migración inicial para cohortes, legajos y metadatos de documentos de inscripción
+- Endpoint público de inscripción con validación de datos, unicidad por cohorte y almacenamiento privado de PDFs
+- Formulario web conectado al endpoint de inscripción, con selección de beca, errores del servidor y código de seguimiento
+- Punto de entrada FastAPI ubicado en `backend/main.py`, de acuerdo con la arquitectura del backend
+- Reglas de Git para excluir archivos de bytecode de Python del repositorio
+- Reglas de exclusión centralizadas en el `.gitignore` raíz y agrupadas por capa
 
 ---
 

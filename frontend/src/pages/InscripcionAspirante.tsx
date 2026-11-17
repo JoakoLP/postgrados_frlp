@@ -1,29 +1,259 @@
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useState, useEffect, useCallback } from 'react';
+import { useForm, useWatch, type FieldPath } from 'react-hook-form';
+
+type InscripcionValues = {
+    carreras: ('Especialización' | 'Maestría' | 'Doctorado')[];
+    dni: string;
+    nombre: string;
+    apellido: string;
+    nacionalidad: string;
+    email: string;
+    email_alternativo: string;
+    telefono_movil: string;
+    telefono_fijo?: string;
+    domicilio: string;
+    ciudad: string;
+    provincia: string;
+    pais: string;
+    titulo_grado: string;
+    titulo_posgrado?: string;
+    como_conocio: string;
+    motivacion: string;
+    solicita_beca: boolean;
+    tipo_beca?: '30%' | '100%';
+    archivo_preinscripcion?: FileList;
+    archivo_dni?: FileList;
+    archivo_titulo?: FileList;
+    archivo_partida?: FileList;
+    archivo_cuit?: FileList;
+    archivo_posgrado?: FileList;
+    archivo_beca?: FileList;
+};
+
+type InscripcionResponse = {
+    codigo_seguimiento: string;
+    estado: string;
+    mensaje: string;
+};
+
+type DraftValues = Partial<Omit<InscripcionValues,
+    | 'archivo_preinscripcion'
+    | 'archivo_dni'
+    | 'archivo_titulo'
+    | 'archivo_partida'
+    | 'archivo_cuit'
+    | 'archivo_posgrado'
+    | 'archivo_beca'
+>>;
+
+type InscripcionDraft = {
+    values: DraftValues;
+    pasoActual: number;
+    updatedAt: number;
+};
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const DRAFT_KEY_PREFIX = 'inscripcion-borrador:';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function esInscripcionDraft(value: unknown): value is InscripcionDraft {
+    if (typeof value !== 'object' || value === null || !('values' in value) || typeof value.values !== 'object' || value.values === null) {
+        return false;
+    }
+
+    return (
+        'email' in value.values &&
+        typeof value.values.email === 'string' &&
+        'pasoActual' in value &&
+        typeof value.pasoActual === 'number' &&
+        'updatedAt' in value &&
+        typeof value.updatedAt === 'number'
+    );
+}
+
+function normalizarEmail(email: string): string {
+    return email.trim().toLowerCase();
+}
+
+function leerBorrador(email: string): InscripcionDraft | null {
+    const stored = localStorage.getItem(`${DRAFT_KEY_PREFIX}${encodeURIComponent(email)}`);
+    if (!stored) {
+        return null;
+    }
+
+    const parsed: unknown = JSON.parse(stored);
+    if (!esInscripcionDraft(parsed) || parsed.values.email !== email) {
+        throw new Error('El borrador guardado no tiene un formato válido.');
+    }
+
+    if (Date.now() - parsed.updatedAt > 30 * 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(`${DRAFT_KEY_PREFIX}${encodeURIComponent(email)}`);
+        return null;
+    }
+
+    return parsed;
+}
+
+function getApiError(payload: unknown): string {
+    if (typeof payload !== 'object' || payload === null || !('detail' in payload)) {
+        return 'No se pudo completar la inscripción. Intentá nuevamente.';
+    }
+
+    const { detail } = payload;
+    if (typeof detail === 'string') {
+        return detail;
+    }
+    if (Array.isArray(detail)) {
+        const messages = detail.flatMap((item) => {
+            if (typeof item === 'object' && item !== null && 'msg' in item && typeof item.msg === 'string') {
+                return [item.msg];
+            }
+            return [];
+        });
+        if (messages.length > 0) {
+            return messages.join('. ');
+        }
+    }
+    return 'Revisá los datos ingresados e intentá nuevamente.';
+}
 
 export default function InscripcionAspirante() {
     const [pasoActual, setPasoActual] = useState(1);
+    const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
+    const [errorBorrador, setErrorBorrador] = useState<string | null>(null);
+    const [emailParaBorrador, setEmailParaBorrador] = useState<string | null>(null);
+    const [borradorDisponible, setBorradorDisponible] = useState<InscripcionDraft | null>(null);
+    const [inscripcionEnviada, setInscripcionEnviada] = useState<InscripcionResponse | null>(null);
 
     useEffect(() => {
         document.title = "Preinscripción 2026 | Sistema de Posgrado";
     }, []);
 
-    const { register, handleSubmit, trigger, watch, formState: { errors } } = useForm({
-        mode: 'onTouched'
+    const { control, register, handleSubmit, trigger, getValues, reset, subscribe, formState: { errors, isSubmitting } } = useForm<InscripcionValues>({
+        mode: 'onChange',
+        reValidateMode: 'onChange',
+        defaultValues: { carreras: [], solicita_beca: false },
+        shouldUnregister: true
     });
 
-    const archivoDni = watch('archivo_dni');
-    const archivoTitulo = watch('archivo_titulo');
-    const archivoPartida = watch('archivo_partida');
-    const archivoBeca = watch('archivo_beca');
-    const archivoPosgrado = watch('archivo_posgrado');
-    const archivoCuit = watch('archivo_cuit');
-    const archivoPreinscripcion = watch('archivo_preinscripcion');
-    const solicitaBeca = watch('solicita_beca', false);
-    const tituloPosgrado = watch('titulo_posgrado', '');
+    const valoresFormulario = useWatch({ control });
+    const emailField = register('email', {
+        required: 'El email es obligatorio',
+        pattern: { value: EMAIL_PATTERN, message: 'Ingresá un email válido' },
+    });
+
+    const guardarBorrador = useCallback((email: string, values: Partial<InscripcionValues>, step = pasoActual) => {
+        try {
+            localStorage.setItem(
+                `${DRAFT_KEY_PREFIX}${encodeURIComponent(email)}`,
+                JSON.stringify({
+                    values: {
+                        carreras: values.carreras,
+                        dni: values.dni,
+                        nombre: values.nombre,
+                        apellido: values.apellido,
+                        nacionalidad: values.nacionalidad,
+                        email: values.email,
+                        email_alternativo: values.email_alternativo,
+                        telefono_movil: values.telefono_movil,
+                        telefono_fijo: values.telefono_fijo,
+                        domicilio: values.domicilio,
+                        ciudad: values.ciudad,
+                        provincia: values.provincia,
+                        pais: values.pais,
+                        titulo_grado: values.titulo_grado,
+                        titulo_posgrado: values.titulo_posgrado,
+                        como_conocio: values.como_conocio,
+                        motivacion: values.motivacion,
+                        solicita_beca: values.solicita_beca,
+                        tipo_beca: values.tipo_beca,
+                    } satisfies DraftValues,
+                    pasoActual: step,
+                    updatedAt: Date.now(),
+                } satisfies InscripcionDraft),
+            );
+            setErrorBorrador(null);
+        } catch {
+            setErrorBorrador('No se pudo guardar el borrador en este dispositivo.');
+        }
+    }, [pasoActual]);
+
+    useEffect(() => {
+        if (!emailParaBorrador || borradorDisponible || inscripcionEnviada) {
+            return;
+        }
+
+        return subscribe({
+            formState: { values: true },
+            callback: ({ values }) => {
+                if (normalizarEmail(values.email ?? '') === emailParaBorrador) {
+                    guardarBorrador(emailParaBorrador, values);
+                }
+            },
+        });
+    }, [borradorDisponible, emailParaBorrador, guardarBorrador, inscripcionEnviada, subscribe]);
+
+    const buscarBorrador = (emailIngresado: string) => {
+        const email = normalizarEmail(emailIngresado);
+        if (!EMAIL_PATTERN.test(email)) {
+            return;
+        }
+
+        try {
+            const borrador = leerBorrador(email);
+            setBorradorDisponible(borrador);
+            setEmailParaBorrador(borrador ? null : email);
+            setErrorBorrador(null);
+            if (!borrador) {
+                guardarBorrador(email, getValues());
+            }
+        } catch {
+            setBorradorDisponible(null);
+            setEmailParaBorrador(null);
+            setErrorBorrador('No se pudo leer el borrador guardado. Podés continuar con una inscripción nueva.');
+        }
+    };
+
+    const recuperarBorrador = () => {
+        if (!borradorDisponible) {
+            return;
+        }
+        reset({
+            carreras: [],
+            solicita_beca: false,
+            ...borradorDisponible.values,
+        });
+        setPasoActual(Math.max(1, Math.min(3, borradorDisponible.pasoActual)));
+        setEmailParaBorrador(normalizarEmail(borradorDisponible.values.email ?? ''));
+        setBorradorDisponible(null);
+        setErrorBorrador(null);
+    };
+
+    const descartarBorrador = () => {
+        const email = normalizarEmail(getValues('email') ?? '');
+        try {
+            localStorage.removeItem(`${DRAFT_KEY_PREFIX}${encodeURIComponent(email)}`);
+            setEmailParaBorrador(email);
+            setBorradorDisponible(null);
+            setErrorBorrador(null);
+            guardarBorrador(email, getValues());
+        } catch {
+            setErrorBorrador('No se pudo eliminar el borrador guardado.');
+        }
+    };
+
+    const archivoDni = valoresFormulario.archivo_dni;
+    const archivoTitulo = valoresFormulario.archivo_titulo;
+    const archivoPartida = valoresFormulario.archivo_partida;
+    const archivoBeca = valoresFormulario.archivo_beca;
+    const archivoPosgrado = valoresFormulario.archivo_posgrado;
+    const archivoCuit = valoresFormulario.archivo_cuit;
+    const archivoPreinscripcion = valoresFormulario.archivo_preinscripcion;
+    const solicitaBeca = valoresFormulario.solicita_beca ?? false;
+    const tituloPosgrado = valoresFormulario.titulo_posgrado ?? '';
 
     // Función validadora de PDFs
-    const validarPDF = (archivos: FileList, esObligatorio: boolean) => {
+    const validarPDF = (archivos: FileList | undefined, esObligatorio: boolean) => {
         if (!archivos || archivos.length === 0) {
             return esObligatorio ? 'Este documento es obligatorio' : true;
         }
@@ -43,33 +273,118 @@ export default function InscripcionAspirante() {
     };
 
     const avanzarPaso = async () => {
-        let camposAValidar: string[] = [];
+        let camposAValidar: FieldPath<InscripcionValues>[] = [];
 
         if (pasoActual === 1) {
             camposAValidar = ['carreras', 'dni', 'nombre', 'apellido', 'email', 'email_alternativo', 'telefono_movil'];
+            if (solicitaBeca) {
+                camposAValidar.push('tipo_beca');
+            }
         } else if (pasoActual === 2) {
             camposAValidar = ['nacionalidad', 'domicilio', 'ciudad', 'provincia', 'pais', 'como_conocio', 'titulo_grado', 'motivacion'];
         }
 
-        const esValido = await trigger(camposAValidar as any);
+        const esValido = await trigger(camposAValidar);
         if (esValido) {
-            setPasoActual(prev => Math.min(prev + 1, 3));
+            const siguientePaso = Math.min(pasoActual + 1, 3);
+            if (emailParaBorrador) {
+                guardarBorrador(emailParaBorrador, getValues(), siguientePaso);
+            }
+            setPasoActual(siguientePaso);
         }
     };
 
-    const retrocederPaso = () => setPasoActual(prev => Math.max(prev - 1, 1));
+    const retrocederPaso = () => {
+        const pasoPrevio = Math.max(pasoActual - 1, 1);
+        if (emailParaBorrador) {
+            guardarBorrador(emailParaBorrador, getValues(), pasoPrevio);
+        }
+        setPasoActual(pasoPrevio);
+    };
 
-    const onSubmit = (data: any) => {
-        console.log('Formulario completo:', data);
-        alert('Inscripción finalizada con éxito (Revisá la consola)');
+    const onSubmit = async (data: InscripcionValues) => {
+        setErrorEnvio(null);
+        const formulario = new FormData();
+        formulario.append('carreras', JSON.stringify(data.carreras));
+        formulario.append('dni', data.dni);
+        formulario.append('nombre', data.nombre);
+        formulario.append('apellido', data.apellido);
+        formulario.append('nacionalidad', data.nacionalidad);
+        formulario.append('email', data.email);
+        formulario.append('email_alternativo', data.email_alternativo);
+        formulario.append('telefono_movil', data.telefono_movil);
+        formulario.append('domicilio', data.domicilio);
+        formulario.append('ciudad', data.ciudad);
+        formulario.append('provincia', data.provincia);
+        formulario.append('pais', data.pais);
+        formulario.append('titulo_grado', data.titulo_grado);
+        formulario.append('como_conocio', data.como_conocio);
+        formulario.append('motivacion', data.motivacion);
+        formulario.append('solicita_beca', String(data.solicita_beca));
+
+        if (data.telefono_fijo) formulario.append('telefono_fijo', data.telefono_fijo);
+        if (data.titulo_posgrado) formulario.append('titulo_posgrado', data.titulo_posgrado);
+        if (data.tipo_beca) formulario.append('tipo_beca', data.tipo_beca);
+
+        const archivos: [string, FileList | undefined][] = [
+            ['archivo_preinscripcion', data.archivo_preinscripcion],
+            ['archivo_dni', data.archivo_dni],
+            ['archivo_titulo', data.archivo_titulo],
+            ['archivo_partida', data.archivo_partida],
+            ['archivo_cuit', data.archivo_cuit],
+            ['archivo_posgrado', data.archivo_posgrado],
+            ['archivo_beca', data.archivo_beca],
+        ];
+        for (const [campo, lista] of archivos) {
+            if (lista?.[0]) {
+                formulario.append(campo, lista[0]);
+            }
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/inscripciones`, {
+                method: 'POST',
+                body: formulario,
+            });
+            const payload: unknown = await response.json();
+            if (!response.ok) {
+                setErrorEnvio(getApiError(payload));
+                return;
+            }
+            if (
+                typeof payload !== 'object' ||
+                payload === null ||
+                !('codigo_seguimiento' in payload) ||
+                typeof payload.codigo_seguimiento !== 'string' ||
+                !('estado' in payload) ||
+                typeof payload.estado !== 'string' ||
+                !('mensaje' in payload) ||
+                typeof payload.mensaje !== 'string'
+            ) {
+                setErrorEnvio('El servidor respondió con un formato inesperado. Contactá a Posgrado.');
+                return;
+            }
+            try {
+                localStorage.removeItem(`${DRAFT_KEY_PREFIX}${encodeURIComponent(normalizarEmail(data.email))}`);
+            } catch {
+                setErrorBorrador('La inscripción se envió, pero no se pudo borrar el borrador de este dispositivo.');
+            }
+            setBorradorDisponible(null);
+            setEmailParaBorrador(null);
+            setInscripcionEnviada({
+                codigo_seguimiento: payload.codigo_seguimiento,
+                estado: payload.estado,
+                mensaje: payload.mensaje,
+            });
+        } catch {
+            setErrorEnvio('No se pudo conectar con el servidor. Verificá tu conexión e intentá nuevamente.');
+        }
     };
 
     const handleKeyDown = async (e: React.KeyboardEvent<HTMLFormElement>) => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && pasoActual < 3) {
             e.preventDefault();
-            if (pasoActual < 3) {
-                await avanzarPaso();
-            }
+            await avanzarPaso();
         }
     };
 
@@ -88,7 +403,43 @@ export default function InscripcionAspirante() {
                     </h2>
                 </div>
 
-                <form onSubmit={(e) => e.preventDefault()} onKeyDown={handleKeyDown} noValidate className="space-y-5">
+                {inscripcionEnviada ? (
+                    <section role="status" className="rounded border border-green-300 bg-green-50 p-6 text-center">
+                        <h3 className="mb-2 text-xl font-bold text-green-800">Inscripción recibida</h3>
+                        <p>{inscripcionEnviada.mensaje}. El estado inicial es {inscripcionEnviada.estado}.</p>
+                        <p className="mt-4 font-semibold">Código de seguimiento</p>
+                        <p className="break-all font-mono">{inscripcionEnviada.codigo_seguimiento}</p>
+                        <p className="mt-3 text-sm">Guardá este código para consultar tu inscripción.</p>
+                    </section>
+                ) : (
+                    <>
+                    {errorEnvio && (
+                        <div role="alert" className="mb-5 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+                            {errorEnvio}
+                        </div>
+                    )}
+                    {errorBorrador && (
+                        <div role="alert" className="mb-5 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+                            {errorBorrador}
+                        </div>
+                    )}
+                    {borradorDisponible && (
+                        <section className="mb-5 rounded border border-blue-300 bg-blue-50 p-4" aria-live="polite">
+                            <p className="text-sm">
+                                Encontramos un borrador guardado para <strong>{borradorDisponible.values.email}</strong>.
+                                ¿Querés recuperar tus datos?
+                            </p>
+                            <div className="mt-3 flex gap-3">
+                                <button type="button" onClick={recuperarBorrador} className="rounded bg-slate-800 px-4 py-2 text-sm font-semibold text-white">
+                                    Recuperar borrador
+                                </button>
+                                <button type="button" onClick={descartarBorrador} className="rounded border border-slate-400 px-4 py-2 text-sm font-semibold">
+                                    Empezar de nuevo
+                                </button>
+                            </div>
+                        </section>
+                    )}
+                    <form onSubmit={handleSubmit(onSubmit)} onKeyDown={handleKeyDown} noValidate className="space-y-5">
 
                     {/* ================= PASO 1 ================= */}
                     <div className={`space-y-4 animate-fade-in ${pasoActual === 1 ? 'block' : 'hidden'}`}>
@@ -171,7 +522,11 @@ export default function InscripcionAspirante() {
                                 <input
                                     id="email"
                                     type="email"
-                                    {...register('email', { required: 'El email es obligatorio' })}
+                                    {...emailField}
+                                    onBlur={(event) => {
+                                        emailField.onBlur(event);
+                                        buscarBorrador(event.currentTarget.value);
+                                    }}
                                     className="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-slate-500 outline-none"
                                 />
                                 {errors.email && <span className="text-red-500 text-xs">{errors.email.message as string}</span>}
@@ -181,7 +536,10 @@ export default function InscripcionAspirante() {
                                 <input
                                     id="email_alternativo"
                                     type="email"
-                                    {...register('email_alternativo', { required: 'El email alternativo es obligatorio' })}
+                                    {...register('email_alternativo', {
+                                        required: 'El email alternativo es obligatorio',
+                                        pattern: { value: EMAIL_PATTERN, message: 'Ingresá un email válido' },
+                                    })}
                                     className="w-full border border-slate-300 rounded p-2 focus:ring-2 focus:ring-slate-500 outline-none"
                                 />
                                 {errors.email_alternativo && <span className="text-red-500 text-xs">{errors.email_alternativo.message as string}</span>}
@@ -217,6 +575,23 @@ export default function InscripcionAspirante() {
                                 <div className="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-800"></div>
                             </label>
                         </div>
+                        {solicitaBeca && (
+                            <div>
+                                <label htmlFor="tipo_beca" className="block text-sm font-semibold mb-1">
+                                    Porcentaje de beca solicitado <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    id="tipo_beca"
+                                    {...register('tipo_beca', { required: 'Seleccioná el porcentaje de beca' })}
+                                    className="w-full border border-slate-300 rounded p-2"
+                                >
+                                    <option value="">Seleccione una opción</option>
+                                    <option value="30%">30%</option>
+                                    <option value="100%">100%</option>
+                                </select>
+                                {errors.tipo_beca && <span className="text-red-500 text-xs">{errors.tipo_beca.message}</span>}
+                            </div>
+                        )}
                     </div>
 
                     {/* ================= PASO 2 ================= */}
@@ -468,15 +843,21 @@ export default function InscripcionAspirante() {
                             </button>
                         ) : (
                             <button
-                                type="button"
-                                onClick={handleSubmit(onSubmit)}
-                                className="px-8 py-2 border-2 border-slate-800 rounded font-bold cursor-pointer hover:bg-slate-50 transition-colors"
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="px-8 py-2 border-2 border-slate-800 rounded font-bold cursor-pointer hover:bg-slate-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                Finalizar
+                                {isSubmitting ? 'Enviando...' : 'Finalizar'}
                             </button>
                         )}
                     </div>
-                </form>
+                    <p className="text-xs text-slate-500">
+                        Tus datos se guardan en este dispositivo para recuperar el borrador con el mismo email.
+                        Los documentos adjuntos deberán cargarse nuevamente. Evitá guardar el borrador en equipos compartidos.
+                    </p>
+                    </form>
+                    </>
+                )}
             </main>
 
             <footer className="pb-10 flex justify-center mt-auto overflow-visible">

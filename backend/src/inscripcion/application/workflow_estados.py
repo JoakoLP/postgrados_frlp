@@ -18,6 +18,7 @@ _TRANSICIONES_COORDINADOR = {
     "APROBAR": {"En Revisión": "Completado"},
     "RECHAZAR": {"En Revisión": "Rechazado"},
     "MATRICULAR": {"Completado": "Activo"},
+    "GRADUAR": {"Activo": "Graduado", "En Riesgo": "Graduado"},
     "DAR_DE_BAJA": {"Activo": "Baja", "En Riesgo": "Baja"},
 }
 _DURACION_TOKEN_CORRECCION = timedelta(hours=72)

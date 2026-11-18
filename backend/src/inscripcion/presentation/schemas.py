@@ -107,6 +107,7 @@ class TransicionLegajoRequest(BaseModel):
         "APROBAR",
         "RECHAZAR",
         "MATRICULAR",
+        "GRADUAR",
         "DAR_DE_BAJA",
     ]
     comentario: str | None = Field(default=None, min_length=1, max_length=2000)

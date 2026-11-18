@@ -375,16 +375,17 @@ def test_recordatorios_asistencia_sin_carga_en_mas_de_dos_semanas(entorno, monke
         headers=coord,
         json={"legajo_ids": [str(legajo.id)]},
     ).status_code == 204
+    ahora = datetime.now(timezone.utc)
+    fecha_hoy_ar = ahora.astimezone(timezone(timedelta(hours=-3))).date()
     docente = {"Authorization": f"Bearer {_enlace(cliente, seminario, tokens)['token']}"}
     assert cliente.post(
         f"/api/v1/seminarios/{seminario}/clases",
         headers=docente,
-        json={"fecha": (date.today() - timedelta(days=15)).isoformat()},
+        json={"fecha": (fecha_hoy_ar - timedelta(days=15)).isoformat()},
     ).status_code == 201
 
     mensajes = []
     monkeypatch.setattr("src.carga_academica.aplicacion.recordatorios.enviar_mensaje_correo", mensajes.append)
-    ahora = datetime.now(timezone.utc)
     assert enviar_recordatorios_asistencia(session, ahora) == 1
     assert "asistencia" in mensajes[0]["Subject"].lower()
     assert enviar_recordatorios_asistencia(session, ahora + timedelta(days=2)) == 0

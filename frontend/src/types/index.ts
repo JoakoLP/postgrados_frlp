@@ -19,6 +19,7 @@ export type AccionWorkflowLegajo =
     | 'APROBAR'
     | 'RECHAZAR'
     | 'MATRICULAR'
+    | 'GRADUAR'
     | 'DAR_DE_BAJA';
 
 export interface Cohorte {

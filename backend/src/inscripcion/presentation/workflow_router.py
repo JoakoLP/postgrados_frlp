@@ -80,6 +80,7 @@ def cambiar_estado_legajo(
         "APROBAR": "El legajo fue aprobado",
         "RECHAZAR": "El legajo fue rechazado",
         "MATRICULAR": "El legajo fue matriculado",
+        "GRADUAR": "El legajo pasó a Graduado",
         "DAR_DE_BAJA": "El legajo fue dado de baja",
     }
     return LegajoEstadoResponse(

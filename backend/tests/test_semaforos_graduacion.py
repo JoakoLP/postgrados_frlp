@@ -298,5 +298,11 @@ def test_estadisticas_conduccion_retorna_las_cinco_metricas(entorno) -> None:
     assert datos["desgranamiento"] == 0.0
     assert datos["promedio_tiempo_graduacion_dias"] is None
     assert datos["estudiantes_en_riesgo"] == 0
+
+    excel = cliente.get("/api/v1/graduacion/estadisticas/exportar", headers=_cabecera(tokens))
+    assert excel.status_code == 200
+    with ZipFile(BytesIO(excel.content)) as archivo:
+        assert "xl/worksheets/sheet1.xml" in archivo.namelist()
+        assert "xl/worksheets/sheet2.xml" in archivo.namelist()
     assert len(datos["por_cohorte"]) == 1
     assert datos["por_cohorte"][0]["total_inscriptos"] == 1

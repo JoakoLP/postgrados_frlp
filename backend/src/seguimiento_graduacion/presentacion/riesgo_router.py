@@ -451,3 +451,66 @@ def obtener_estadisticas_conduccion(
         estudiantes_en_riesgo=en_riesgo,
         por_cohorte=por_cohorte,
     )
+
+
+@router.get("/graduacion/estadisticas/exportar")
+def exportar_estadisticas_conduccion(
+    cohorte_id: UUID | None = None,
+    carrera: Carrera | None = None,
+    session: Session = Depends(get_db),
+    usuario: User = Depends(requerir_roles("COORDINADOR")),
+) -> StreamingResponse:
+    datos = obtener_estadisticas_conduccion(
+        cohorte_id=cohorte_id,
+        carrera=carrera,
+        session=session,
+        _=usuario,
+    )
+    filas = [
+        [
+            "Cohorte",
+            "Año",
+            "Inscriptos",
+            "Activos",
+            "Graduados",
+            "Desgranados",
+            "Tasa de retención (%)",
+            "Desgranamiento (%)",
+        ]
+    ]
+    for item in datos.por_cohorte:
+        filas.append(
+            [
+                item.cohorte_nombre,
+                str(item.anio),
+                str(item.total_inscriptos),
+                str(item.activos),
+                str(item.graduados),
+                str(item.desgranamiento_cantidad),
+                f"{item.tasa_retencion:.1f}%",
+                f"{item.desgranamiento:.1f}%",
+            ]
+        )
+    cohorte_obj = session.get(Cohorte, cohorte_id) if cohorte_id is not None else None
+    metadatos = {
+        "Cohorte filtrada": cohorte_obj.nombre if cohorte_obj is not None else "Todas",
+        "Carrera filtrada": carrera or "Todas",
+        "Total inscriptos": str(datos.total_inscriptos),
+        "Total graduados": str(datos.total_graduados),
+        "Tasa de retención global": f"{datos.tasa_retencion:.1f}%",
+        "Desgranamiento global": f"{datos.desgranamiento:.1f}%",
+        "Promedio tiempo de graduación (días)": (
+            f"{datos.promedio_tiempo_graduacion_dias:.1f}"
+            if datos.promedio_tiempo_graduacion_dias is not None
+            else "N/D"
+        ),
+        "Estudiantes en riesgo (Rojo)": str(datos.estudiantes_en_riesgo),
+    }
+    return StreamingResponse(
+        generar_excel(filas, "Estadísticas", metadatos=metadatos),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="estadisticas-conduccion-{date.today():%Y-%m-%d}.xlsx"',
+            "Cache-Control": "private, no-store",
+        },
+    )

@@ -18,8 +18,14 @@ const ACCIONES_POR_ESTADO: Partial<Record<EstadoLegajo, Array<{ accion: AccionWo
         { accion: 'RECHAZAR', etiqueta: 'Rechazar legajo' },
     ],
     Completado: [{ accion: 'MATRICULAR', etiqueta: 'Matricular (Activo)' }],
-    Activo: [{ accion: 'DAR_DE_BAJA', etiqueta: 'Dar de baja' }],
-    'En Riesgo': [{ accion: 'DAR_DE_BAJA', etiqueta: 'Dar de baja' }],
+    Activo: [
+        { accion: 'GRADUAR', etiqueta: 'Graduar' },
+        { accion: 'DAR_DE_BAJA', etiqueta: 'Dar de baja' },
+    ],
+    'En Riesgo': [
+        { accion: 'GRADUAR', etiqueta: 'Graduar' },
+        { accion: 'DAR_DE_BAJA', etiqueta: 'Dar de baja' },
+    ],
 };
 
 function badgeEstado(estado: EstadoLegajo): string {

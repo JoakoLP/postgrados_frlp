@@ -28,6 +28,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validar_secreto_jwt(self) -> "Settings":
+        if self.smtp_user.strip().startswith("#"):
+            self.smtp_user = ""
+        if self.smtp_password.strip().startswith("#"):
+            self.smtp_password = ""
         if self.environment.lower() == "production" and (
             len(self.jwt_secret) < 32
             or self.jwt_secret.startswith(

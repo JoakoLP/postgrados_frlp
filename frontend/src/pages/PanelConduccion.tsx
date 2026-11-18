@@ -142,7 +142,7 @@ export default function PanelConduccion() {
             if (cohorteSeleccionada !== 'Todas') params.set('cohorte_id', cohorteSeleccionada);
             if (carreraSeleccionada !== 'Todas') params.set('carrera', carreraSeleccionada);
             const qs = params.toString() ? `?${params.toString()}` : '';
-            await descargarArchivo(`/legajos/exportar${qs}`, 'reporte-inscriptos.xlsx');
+            await descargarArchivo(`/graduacion/estadisticas/exportar${qs}`, 'estadisticas-conduccion.xlsx');
         } catch (err) {
             setError(err instanceof Error ? err.message : 'No se pudo exportar el reporte.');
         } finally {

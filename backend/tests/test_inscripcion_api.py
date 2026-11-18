@@ -914,9 +914,10 @@ def test_exportacion_xlsx_aplica_encabezado_negrita_y_filtros(
             if nombre.endswith((".xml", ".rels")):
                 ElementTree.fromstring(archivo.read(nombre))
         hoja = ElementTree.fromstring(archivo.read("xl/worksheets/sheet1.xml"))
+        assert "xl/worksheets/sheet2.xml" in archivo.namelist()
         estilos = ElementTree.fromstring(archivo.read("xl/styles.xml"))
     ns = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-    assert hoja.find("x:autoFilter", ns).attrib["ref"] == "A1:H2"
+    assert hoja.find("x:autoFilter", ns).attrib["ref"] == "A1:I2"
     assert hoja.find("x:sheetData/x:row/x:c", ns).attrib["s"] == "1"
     assert hoja.find("x:cols/x:col", ns).attrib["customWidth"] == "1"
     assert estilos.find("x:fonts/x:font[2]/x:b", ns) is not None

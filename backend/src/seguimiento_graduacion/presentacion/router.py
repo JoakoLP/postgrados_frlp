@@ -15,6 +15,7 @@ from src.seguimiento_graduacion.infraestructura.modelos import TrabajoFinal
 from src.seguimiento_graduacion.presentacion.esquemas import (
     ActualizarTrabajoFinal,
     DatosTrabajoFinal,
+    LegajoResumenCPR,
     TrabajoFinalRespuesta,
 )
 from src.shared.auditoria.servicio import registrar_evento_auditoria
@@ -157,5 +158,17 @@ def listar_trabajos_finales(
             select(TrabajoFinal)
             .where(TrabajoFinal.legajo_id == id)
             .order_by(TrabajoFinal.fecha_aprobacion_cpr, TrabajoFinal.id)
+        )
+    )
+
+
+@router.get("/cpr/legajos", response_model=list[LegajoResumenCPR])
+def listar_legajos_cpr(
+    session: Session = Depends(get_db),
+    _: User = Depends(requerir_roles("CPR", "COORDINADOR")),
+) -> list[Legajo]:
+    return list(
+        session.scalars(
+            select(Legajo).order_by(Legajo.apellido, Legajo.nombre)
         )
     )

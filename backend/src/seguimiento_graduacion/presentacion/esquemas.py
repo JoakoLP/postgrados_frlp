@@ -73,6 +73,18 @@ class TrabajoFinalRespuesta(DatosTrabajoFinal):
     legajo_id: UUID
 
 
+class LegajoResumenCPR(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    numero_legajo: str | None = None
+    apellido: str
+    nombre: str
+    dni: str
+    estado: str
+    carreras: list[str]
+
+
 class ConfirmarPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
     cohorte_id: UUID

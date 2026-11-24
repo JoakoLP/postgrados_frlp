@@ -29,6 +29,15 @@ function estadoRecordatorio(fechaLimite: string | null): { texto: string; clase:
     return { texto: `Programado (${new Date(fechaLimite).toLocaleDateString('es-AR')})`, clase: 'bg-blue-100 text-blue-700' };
 }
 
+function calcularCuerpoEnlace(fechaFinCuatrimestre: string): Record<string, string> {
+    const finMs = new Date(`${fechaFinCuatrimestre}T23:59:59-03:00`).getTime();
+    const ahoraMs = Date.now();
+    if (finMs <= ahoraMs) {
+        return { expira_en: new Date(ahoraMs + 7 * 24 * 3600 * 1000).toISOString() };
+    }
+    return {};
+}
+
 export default function GestionDocente() {
     const { solicitar } = useApiClient();
 
@@ -314,10 +323,11 @@ export default function GestionDocente() {
         setError(null);
         setMensaje(null);
         try {
+            const cuerpo = calcularCuerpoEnlace(seminarioActual.fecha_fin_cuatrimestre);
             const resp = await solicitar(`/seminarios/${seminarioActual.id}/enlace`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}),
+                body: JSON.stringify(cuerpo),
             });
             if (!resp.ok) {
                 throw new Error(await extraerErrorApi(resp, 'No se pudo generar el enlace docente.'));
@@ -639,9 +649,19 @@ export default function GestionDocente() {
                                     </button>
                                 </div>
                                 {enlaceGenerado && (
-                                    <p className="text-xs bg-white border border-slate-200 rounded p-2 break-all">
-                                        <strong>Enlace:</strong> {enlaceGenerado.enlace}
-                                    </p>
+                                    <div className="text-xs bg-white border border-slate-200 rounded p-2 space-y-1 break-all">
+                                        <p>
+                                            <strong>Enlace:</strong> {enlaceGenerado.enlace}
+                                        </p>
+                                        <div className="flex gap-3 pt-1">
+                                            <Link
+                                                to={`/docente/seminarios/${seminarioActual.id}#token=${encodeURIComponent(enlaceGenerado.token)}`}
+                                                className="font-bold text-blue-700 hover:underline"
+                                            >
+                                                Abrir vista pública docente →
+                                            </Link>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </section>

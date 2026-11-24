@@ -31,6 +31,30 @@ export interface Cohorte {
     fecha_proxima_apertura: string | null;
 }
 
+export interface CohortePublica {
+    id: string;
+    anio: number;
+    nombre: string;
+}
+
+export interface ResultadoSeminarioLegajo {
+    seminario_id: string;
+    nombre: string;
+    porcentaje_asistencia: string;
+    nota: string | null;
+    condicion: string;
+}
+
+export interface LegajoResumenCPR {
+    id: string;
+    numero_legajo: string | null;
+    apellido: string;
+    nombre: string;
+    dni: string;
+    estado: EstadoLegajo;
+    carreras: TipoCarrera[];
+}
+
 export interface DocumentoResumen {
     id: string;
     tipo: string;

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { useAuth } from '../auth/useAuth';
 import { extraerErrorApi, useApiClient } from '../shared/api/useApiClient';
 import type {
+    AsignacionCoordinador,
     Cohorte,
     EstadoSemaforo,
     EstudianteEnRiesgo,
@@ -28,11 +30,16 @@ function badgeSemaforo(estado: EstadoSemaforo): string {
 
 export default function SeguimientoGraduacion() {
     const { solicitar, descargarArchivo } = useApiClient();
+    const { session } = useAuth();
 
     const [cohortes, setCohortes] = useState<Cohorte[]>([]);
     const [planes, setPlanes] = useState<PlanGraduacion[]>([]);
     const [planCohorteId, setPlanCohorteId] = useState('');
     const [planCarrera, setPlanCarrera] = useState<TipoCarrera>('Especialización');
+
+    const [asignaciones, setAsignaciones] = useState<AsignacionCoordinador[]>([]);
+    const [asignacionCarrera, setAsignacionCarrera] = useState<TipoCarrera>('Especialización');
+    const [asignacionUsuarioId, setAsignacionUsuarioId] = useState(() => session?.user.id ?? '');
 
     const [enRiesgo, setEnRiesgo] = useState<EstudianteEnRiesgo[]>([]);
     const [activos, setActivos] = useState<LegajoListado[]>([]);
@@ -54,11 +61,12 @@ export default function SeguimientoGraduacion() {
         setCargando(true);
         setError(null);
         try {
-            const [respCohortes, respPlanes, respRiesgo, respActivos] = await Promise.all([
+            const [respCohortes, respPlanes, respRiesgo, respActivos, respAsignaciones] = await Promise.all([
                 solicitar('/cohortes/gestion'),
                 solicitar('/graduacion/planes'),
                 solicitar('/graduacion/en-riesgo?limit=100'),
                 solicitar('/legajos?estado=Activo'),
+                solicitar('/graduacion/asignaciones'),
             ]);
 
             if (respCohortes.ok) {
@@ -78,6 +86,9 @@ export default function SeguimientoGraduacion() {
             if (respActivos.ok) {
                 setActivos(await respActivos.json());
             }
+            if (respAsignaciones.ok) {
+                setAsignaciones(await respAsignaciones.json());
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error al cargar datos de graduación.');
         } finally {
@@ -89,11 +100,12 @@ export default function SeguimientoGraduacion() {
         let cancelado = false;
         const ejecutar = async () => {
             try {
-                const [respCohortes, respPlanes, respRiesgo, respActivos] = await Promise.all([
+                const [respCohortes, respPlanes, respRiesgo, respActivos, respAsignaciones] = await Promise.all([
                     solicitar('/cohortes/gestion'),
                     solicitar('/graduacion/planes'),
                     solicitar('/graduacion/en-riesgo?limit=100'),
                     solicitar('/legajos?estado=Activo'),
+                    solicitar('/graduacion/asignaciones'),
                 ]);
 
                 if (cancelado) return;
@@ -113,6 +125,9 @@ export default function SeguimientoGraduacion() {
                 setEnRiesgo(await respRiesgo.json());
                 if (respActivos.ok) {
                     setActivos(await respActivos.json());
+                }
+                if (respAsignaciones.ok) {
+                    setAsignaciones(await respAsignaciones.json());
                 }
                 setError(null);
             } catch (err) {
@@ -266,6 +281,45 @@ export default function SeguimientoGraduacion() {
         }
     };
 
+    const handleAsignarCoordinador = async () => {
+        const idUsuario = asignacionUsuarioId.trim() || session?.user.id || '';
+        if (!idUsuario) {
+            setError('Indicá el UUID del usuario coordinador a asignar.');
+            return;
+        }
+        setError(null);
+        setMensaje(null);
+        try {
+            const resp = await solicitar('/graduacion/asignaciones', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ carrera: asignacionCarrera, usuario_id: idUsuario }),
+            });
+            if (!resp.ok) {
+                throw new Error(await extraerErrorApi(resp, 'No se pudo asignar el coordinador a la carrera.'));
+            }
+            setMensaje(`Coordinador asignado a ${asignacionCarrera} para recibir alertas.`);
+            await cargarDatosIniciales();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'No se pudo asignar el coordinador.');
+        }
+    };
+
+    const handleQuitarAsignacion = async (idAsignacion: string) => {
+        setError(null);
+        setMensaje(null);
+        try {
+            const resp = await solicitar(`/graduacion/asignaciones/${idAsignacion}`, { method: 'DELETE' });
+            if (!resp.ok) {
+                throw new Error(await extraerErrorApi(resp, 'No se pudo quitar la asignación.'));
+            }
+            setMensaje('Asignación de coordinador eliminada.');
+            await cargarDatosIniciales();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'No se pudo quitar la asignación.');
+        }
+    };
+
     return (
         <div className="flex flex-col flex-grow bg-white font-sans text-slate-800 p-8">
             <main className="max-w-6xl mx-auto w-full flex-grow space-y-8">
@@ -327,6 +381,68 @@ export default function SeguimientoGraduacion() {
                                     className={`px-3 py-1 rounded-full text-xs font-semibold border ${plan.confirmado ? 'bg-green-50 text-green-800 border-green-300' : 'bg-amber-50 text-amber-800 border-amber-300'}`}
                                 >
                                     {plan.carrera} · {plan.confirmado ? 'Confirmado' : 'Pendiente de confirmación'}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </section>
+
+                {/* Asignación de coordinadores por carrera (destinatarios de alertas de semáforo rojo) */}
+                <section className="border border-slate-200 rounded-lg p-5 bg-slate-50 space-y-3">
+                    <h2 className="font-bold text-sm uppercase text-slate-600">
+                        Coordinadores asignados por carrera (Destinatarios de Alertas)
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                        <div>
+                            <label className="block text-xs font-bold mb-1 text-slate-600">Carrera</label>
+                            <select
+                                value={asignacionCarrera}
+                                onChange={(e) => setAsignacionCarrera(e.target.value as TipoCarrera)}
+                                className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
+                            >
+                                <option value="Especialización">Especialización</option>
+                                <option value="Maestría">Maestría</option>
+                                <option value="Doctorado">Doctorado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold mb-1 text-slate-600">
+                                UUID de Usuario Coordinador
+                            </label>
+                            <input
+                                type="text"
+                                value={asignacionUsuarioId}
+                                onChange={(e) => setAsignacionUsuarioId(e.target.value)}
+                                placeholder={session?.user.id ?? 'UUID del coordinador'}
+                                className="w-full border border-slate-300 rounded p-2 text-sm bg-white font-mono"
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => void handleAsignarCoordinador()}
+                            className="border-2 border-slate-800 rounded px-4 py-2 text-sm font-bold hover:bg-white"
+                        >
+                            Asignar Coordinador
+                        </button>
+                    </div>
+                    {asignaciones.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-2">
+                            {asignaciones.map((asig) => (
+                                <span
+                                    key={asig.id}
+                                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-white border border-slate-300"
+                                >
+                                    <span>
+                                        {asig.carrera} · <code className="text-[11px]">{asig.usuario_id.slice(0, 8)}…</code>
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleQuitarAsignacion(asig.id)}
+                                        className="text-red-700 hover:underline font-bold"
+                                        title="Quitar asignación"
+                                    >
+                                        ✕
+                                    </button>
                                 </span>
                             ))}
                         </div>

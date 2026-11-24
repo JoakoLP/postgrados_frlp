@@ -8,9 +8,10 @@ export default function MainLayout() {
 
     return (
         <div className="min-h-screen flex flex-col bg-white font-sans text-slate-800">
-            <nav className="bg-blue-900 text-white p-4 flex gap-4 shadow-md">
+            <nav className="bg-blue-900 text-white p-4 flex flex-wrap gap-4 shadow-md">
                 <Link to="/inscripcion" className="hover:underline">Formulario de inscripción</Link>
-                {session?.user.role === 'COORDINADOR' && (
+                <Link to="/seguimiento" className="hover:underline">Seguimiento de inscripción</Link>
+                {(session?.user.role === 'COORDINADOR' || session?.user.role === 'ADMIN') && (
                     <Link to="/coordinador" className="hover:underline">Gestión de coordinación</Link>
                 )}
                 {session?.user.role === 'CPR' && (

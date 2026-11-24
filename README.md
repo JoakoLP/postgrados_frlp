@@ -68,41 +68,46 @@ Lee en este orden antes de escribir código:
 
 | Módulo | Descripción | Estado |
 |--------|-------------|--------|
-| **CORE** *(todos los equipos)* | Inscripción, legajo digital, workflow de estados, gestión documental | 🟡 En kickoff |
-| **MOD-B** | Gestión Docente: asistencia digital, calificaciones, recordatorios automáticos | 🔴 Pendiente |
-| **MOD-C** | Seguimiento de Graduación: TFI/Tesis, semáforo de riesgo académico | 🔴 Pendiente |
-| **MOD-D** | Analytics & Reporting: dashboards, estadísticas por cohorte, exportación | 🔴 Pendiente |
+| **CORE** *(todos los equipos)* | Inscripción, legajo digital, workflow de estados, gestión documental y cohortes | 🟢 Completado |
+| **MOD-B** | Gestión Docente: asistencia digital, calificaciones, import/export Excel y recordatorios automáticos | 🟢 Completado |
+| **MOD-C** | Seguimiento de Graduación: TFI/Tesis (CPR), avances, semáforo de riesgo académico y alertas | 🟢 Completado |
+| **MOD-D** | Analytics & Reporting: Panel de Conducción, estadísticas por cohorte y exportación Excel | 🟢 Completado |
 
 ---
 
 ## Quickstart — Levantá el entorno en 5 minutos
 
-> **Requisitos previos:** Git · Docker Desktop · Node.js 20+ (o Python 3.11+)
+> **Requisitos previos:** Git · Docker Desktop · Node.js 22+ · Python 3.12+
 
 ```bash
-# 1. Cloná tu repositorio (URL provisto por GitHub)
-git clone https://github.com/desasoftfrlptn/postgrados_frlp.git
-cd postgrado-[NOMBRE-EQUIPO]
+# 1. Cloná el repositorio
+git clone https://github.com/JoakoLP/postgrados_frlp.git
+cd postgrados_frlp
 
 # 2. Configurá variables de entorno
 cp .env.example .env
 
-# 3. Levantá los servicios (base de datos + backend + frontend)
-docker-compose up -d
-
-# 4. Instalá dependencias
-npm install        # Si usás Node/NestJS
-# -- ó --
-pip install -r requirements.txt  # Si usás Python/FastAPI
-
-# 5. Ejecutá las migraciones de base de datos
-npm run db:migrate   # Prisma
-# -- ó --
-alembic upgrade head  # SQLAlchemy
-
-# 6. Iniciá el servidor de desarrollo
-npm run dev
+# 3. Levantá los servicios con Docker Compose (PostgreSQL 16 + MailHog + Backend FastAPI + Frontend Vite)
+# El contenedor del backend ejecuta automáticamente:
+#   - alembic upgrade head
+#   - python -m scripts.seed (datos de prueba para todos los módulos en development)
+docker compose up -d --build
 ```
+
+### Servicios y Credenciales de Desarrollo
+
+| Servicio | URL | Descripción |
+|---|---|---|
+| **Frontend (React + Vite)** | `http://localhost:3000` | Aplicación web (Inscripción, Seguimiento, Coordinación, CPR y Portal Docente) |
+| **Backend API (Swagger / OpenAPI)** | `http://localhost:8000/api/docs` | Documentación interactiva de FastAPI |
+| **MailHog (Web UI)** | `http://localhost:8025` | Bandeja local de correos enviados en desarrollo (SMTP en puerto `1025`) |
+| **PostgreSQL 16** | `localhost:5432` | Base de datos `postgrado_dev` |
+
+| Rol | Email | Contraseña |
+|---|---|---|
+| **COORDINADOR** | `admin@fenix.test` | `Admin1234!` |
+| **CPR** | `cpr@fenix.test` | `Cpr1234!` |
+| **ADMIN** | `sistema@fenix.test` | `Sistema1234!` |
 
 ✅ **Criterio de éxito:** La app corre en `http://localhost:3000` sin errores en consola.
 
@@ -111,39 +116,37 @@ npm run dev
 ## Estructura del Repositorio
 
 ```
-postgrado-[equipo]/
-├── README.md                     ← Empezá acá
+postgrados_frlp/
+├── README.md                     ← Punto de entrada y guía rápida
 ├── CONTRIBUTING.md               ← Cómo trabajar: ramas, commits, PRs
 ├── CHANGELOG.md                  ← Historial de cambios por versión
-├── docker-compose.yml            ← Ambiente local unificado
+├── docker-compose.yml            ← Ambiente local unificado (db + backend + frontend + mailhog)
 ├── .env.example                  ← Variables de entorno de referencia
 │
-├── docs/
-│   ├── SRS.md                    ← Especificación de Requisitos (fuente de verdad)
-│   ├── PRD.md                    ← Product Requirements Document
-│   ├── BFD.md                    ← Business Flow Diagram
-│   ├── ARQUITECTURA.md           ← Decisiones técnicas + diagramas C4
-│   ├── CRONOGRAMA.md             ← Roadmap con fechas reales (abr–nov 2026)
-│   ├── BACKLOG_MODELO.md         ← Historias de usuario base + plantillas
-│   ├── DEFINITION_OF_DONE.md    ← Criterios de completitud del equipo
-│   ├── ASR.md                    ← Requisitos arquitectónicamente significativos
-│   │
-│   ├── onboarding/
-│   │   ├── GUIA_KICKOFF.md       ← Qué hacer en las primeras 3 semanas
-│   │   ├── SETUP_LOCAL.md        ← Setup paso a paso con troubleshooting
-│   │   └── TEAM_CHARTER.md       ← Contrato social del equipo (completar)
-│   │
-│   └── adr/                      ← Registro de decisiones de arquitectura
-│       ├── ADR-000-template.md
-│       └── ADR-001-stack.md      ← Primera decisión: elección de stack
+├── backend/                      ← API REST en Python 3.12 + FastAPI + SQLAlchemy 2.0 + Alembic
+│   ├── main.py                   ← Punto de entrada FastAPI y tareas programadas
+│   ├── alembic/                  ← Migraciones de base de datos
+│   ├── scripts/                  ← seed.py (datos de prueba) y create_user.py
+│   ├── src/
+│   │   ├── autenticacion/        ← JWT, rotación de refresh tokens y usuarios
+│   │   ├── inscripcion/          ← Módulo Core (legajos, cohortes, documentos PDF, workflow)
+│   │   ├── carga_academica/      ← Módulo B (seminarios, clases, asistencias, notas, recordatorios)
+│   │   ├── seguimiento_graduacion/ ← Módulos C y D (TFI/Tesis CPR, semáforos, alertas y estadísticas)
+│   │   └── shared/               ← Auditoría, autorización, SMTP, Excel y rate limiting
+│   └── tests/                    ← Suite de tests Pytest (118 tests, >90% cobertura)
 │
-├── src/
-│   ├── core/                     ← Módulo Core (TODOS los equipos)
-│   └── mod-[b|c|d]/              ← Módulo especializado asignado
+├── frontend/                     ← SPA en React 19 + TypeScript + Vite + TailwindCSS + Chart.js
+│   └── src/
+│       ├── auth/                 ← Contexto de sesión JWT y protección por rol
+│       ├── layouts/              ← MainLayout y CoordinadorLayout
+│       ├── pages/                ← Inscripción, Seguimiento, Coordinación, Docente y CPR
+│       ├── shared/api/           ← Cliente HTTP con refresh automático y descarga de archivos
+│       └── types/                ← Contratos TypeScript alineados con la API
 │
-└── .github/
-    └── workflows/
-        └── ci.yml                ← Pipeline: lint + test + build en cada PR
+├── docs/                         ← SRS, PRD, BFD, Arquitectura, Cronograma, ASR y DoD
+├── onboarding/                   ← Guía de Kickoff, Setup Local y Team Charter
+├── adr/                          ← Architecture Decision Records (ADR-001 a ADR-008)
+└── .github/workflows/ci.yml      ← Pipeline CI: Migraciones + Pytest (≥70%) + ESLint + Vite Build
 ```
 
 ---

@@ -1,6 +1,5 @@
-# CI/CD Pipeline — Fenix Posgrado
-# Se ejecuta en: cada Push a develop/main, cada Pull Request a develop/main
-# Objetivo: Garantizar que el código que llega a las ramas principales no rompe nada
+# CI/CD Pipeline — Sistema de Posgrado UTN FRLP
+# Se ejecuta en cada Push o Pull Request hacia main y develop
 
 name: CI Pipeline
 
@@ -12,131 +11,101 @@ on:
 
 jobs:
   # ──────────────────────────────────────────
-  # JOB 1: Calidad de código (Lint)
+  # JOB 1: Backend (FastAPI + Alembic + Pytest ≥70%)
   # ──────────────────────────────────────────
-  lint:
-    name: Linting y Formato
+  backend:
+    name: Backend · Migraciones, Tests y Cobertura
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: src/core/package-lock.json
-
-      - name: Instalar dependencias (Backend)
-        working-directory: src/core
-        run: npm ci
-
-      - name: Ejecutar ESLint (Backend)
-        working-directory: src/core
-        run: npm run lint
-
-      - name: Verificar formato (Prettier)
-        working-directory: src/core
-        run: npm run format:check
-
-      - name: Instalar dependencias (Frontend)
-        working-directory: src/frontend
-        run: npm ci
-
-      - name: Ejecutar ESLint (Frontend)
-        working-directory: src/frontend
-        run: npm run lint
-
-  # ──────────────────────────────────────────
-  # JOB 2: Tests con cobertura
-  # ──────────────────────────────────────────
-  test:
-    name: Tests Unitarios y Cobertura
-    runs-on: ubuntu-latest
-    needs: lint  # Solo corre si el lint pasa
-    
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:16-alpine
         env:
-          POSTGRES_USER: test_user
+          POSTGRES_USER: postgrado_user
           POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: fenix_test
+          POSTGRES_DB: postgrado_test
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgrado_user -d postgrado_test"
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
         ports:
           - 5432:5432
 
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      DATABASE_URL: postgresql+psycopg2://postgrado_user:test_password@localhost:5432/postgrado_test
+      JWT_SECRET: development-only-secret-change-before-deploying
+      ENVIRONMENT: development
+      STORAGE_PATH: /tmp/postgrado-ci-storage
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
         with:
-          node-version: '20'
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/pyproject.toml
 
-      - name: Instalar dependencias
-        working-directory: src/core
-        run: npm ci
+      - name: Instalar dependencias (Backend)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
 
-      - name: Ejecutar migraciones de test
-        working-directory: src/core
-        env:
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/fenix_test
-        run: npm run db:migrate
+      - name: Verificar sintaxis Python
+        run: python -m compileall -q main.py src scripts tests
 
-      - name: Ejecutar tests con cobertura
-        working-directory: src/core
-        env:
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/fenix_test
-          JWT_SECRET: test-secret-for-ci
-          STORAGE_PATH: /tmp/fenix-test-storage
-        run: npm run test:coverage
+      - name: Ejecutar migraciones Alembic sobre PostgreSQL 16
+        run: alembic upgrade head
 
-      - name: Verificar umbral de cobertura (≥70%)
-        working-directory: src/core
-        run: npm run test:coverage:check
+      - name: Verificar ejecución idempotente del seed de desarrollo
+        run: |
+          python -m scripts.seed
+          python -m scripts.seed
+
+      - name: Ejecutar tests unitarios e integración con cobertura (≥70%)
+        run: pytest --cov=src --cov-fail-under=70 --cov-report=term-missing --cov-report=xml
 
       - name: Subir reporte de cobertura
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-report
-          path: src/core/coverage/
+          name: backend-coverage-report
+          path: backend/coverage.xml
 
   # ──────────────────────────────────────────
-  # JOB 3: Build
+  # JOB 2: Frontend (React + TypeScript + ESLint + Vite Build)
   # ──────────────────────────────────────────
-  build:
-    name: Build de Producción
+  frontend:
+    name: Frontend · Linting y Build de Producción
     runs-on: ubuntu-latest
-    needs: test
+
+    defaults:
+      run:
+        working-directory: frontend
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Build Backend
-        working-directory: src/core
-        run: |
-          npm ci
-          npm run build
+      - name: Instalar dependencias (Frontend)
+        run: npm ci
 
-      - name: Build Frontend
-        working-directory: src/frontend
+      - name: Ejecutar ESLint (Frontend)
+        run: npm run lint
+
+      - name: Build de Producción (TypeScript + Vite)
         env:
-          VITE_API_URL: https://fenix.example.com/api/v1
-        run: |
-          npm ci
-          npm run build
-
-      - name: Verificar que el build no tiene warnings críticos
-        working-directory: src/frontend
-        run: echo "Build exitoso sin errores"
+          VITE_API_URL: http://localhost:8000/api/v1
+        run: npm run build

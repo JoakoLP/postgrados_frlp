@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useForm, useWatch, type FieldPath } from 'react-hook-form';
+import type { CohortePublica } from '../types';
 
 type InscripcionValues = {
     carreras: ('Especialización' | 'Maestría' | 'Doctorado')[];
@@ -124,10 +126,56 @@ export default function InscripcionAspirante() {
     const [emailParaBorrador, setEmailParaBorrador] = useState<string | null>(null);
     const [borradorDisponible, setBorradorDisponible] = useState<InscripcionDraft | null>(null);
     const [inscripcionEnviada, setInscripcionEnviada] = useState<InscripcionResponse | null>(null);
+    const [cohortesAbiertas, setCohortesAbiertas] = useState<CohortePublica[]>([]);
+    const [cohorteElegidaId, setCohorteElegidaId] = useState<string>('');
+    const [proximaApertura, setProximaApertura] = useState<string | null>(null);
+    const [pdfPreview, setPdfPreview] = useState<{ nombre: string; url: string } | null>(null);
 
     useEffect(() => {
         document.title = "Preinscripción 2026 | Sistema de Posgrado";
+        let cancelado = false;
+        const consultarCohortes = async () => {
+            try {
+                const resp = await fetch(`${API_URL}/cohortes`);
+                if (resp.ok && !cancelado) {
+                    const abiertas: CohortePublica[] = await resp.json();
+                    setCohortesAbiertas(abiertas);
+                    if (abiertas.length > 0) {
+                        setCohorteElegidaId(abiertas[0].id);
+                        setProximaApertura(null);
+                    } else {
+                        const respProx = await fetch(`${API_URL}/cohortes/proxima-apertura`);
+                        if (respProx.ok && !cancelado) {
+                            const datoProx: { fecha_proxima_apertura?: string } = await respProx.json();
+                            setProximaApertura(datoProx.fecha_proxima_apertura ?? null);
+                        }
+                    }
+                }
+            } catch {
+                // Ignorar si no está disponible al iniciar
+            }
+        };
+        void consultarCohortes();
+        return () => {
+            cancelado = true;
+        };
     }, []);
+
+    const abrirVistaPreviaPdf = (archivos: FileList | undefined) => {
+        const archivo = archivos?.[0];
+        if (!archivo) return;
+        if (pdfPreview) {
+            URL.revokeObjectURL(pdfPreview.url);
+        }
+        setPdfPreview({ nombre: archivo.name, url: URL.createObjectURL(archivo) });
+    };
+
+    const cerrarVistaPreviaPdf = () => {
+        if (pdfPreview) {
+            URL.revokeObjectURL(pdfPreview.url);
+            setPdfPreview(null);
+        }
+    };
 
     const { control, register, handleSubmit, trigger, getValues, reset, subscribe, formState: { errors, isSubmitting } } = useForm<InscripcionValues>({
         mode: 'onChange',
@@ -325,6 +373,7 @@ export default function InscripcionAspirante() {
         if (data.telefono_fijo) formulario.append('telefono_fijo', data.telefono_fijo);
         if (data.titulo_posgrado) formulario.append('titulo_posgrado', data.titulo_posgrado);
         if (data.tipo_beca) formulario.append('tipo_beca', data.tipo_beca);
+        if (cohorteElegidaId) formulario.append('cohorte_id', cohorteElegidaId);
 
         const archivos: [string, FileList | undefined][] = [
             ['archivo_preinscripcion', data.archivo_preinscripcion],
@@ -410,9 +459,42 @@ export default function InscripcionAspirante() {
                         <p className="mt-4 font-semibold">Código de seguimiento</p>
                         <p className="break-all font-mono">{inscripcionEnviada.codigo_seguimiento}</p>
                         <p className="mt-3 text-sm">Guardá este código para consultar tu inscripción.</p>
+                        <div className="mt-4">
+                            <Link
+                                to={`/seguimiento?id=${encodeURIComponent(inscripcionEnviada.codigo_seguimiento)}`}
+                                className="inline-block rounded bg-[#2a3441] px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+                            >
+                                Ir a Seguimiento de Inscripción →
+                            </Link>
+                        </div>
                     </section>
                 ) : (
                     <>
+                    {proximaApertura && cohortesAbiertas.length === 0 && (
+                        <div role="status" className="mb-5 rounded border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                            <strong>Inscripción cerrada temporalmente.</strong> La próxima apertura prevista informada por coordinación es el{' '}
+                            <strong>{proximaApertura}</strong>.
+                        </div>
+                    )}
+                    {cohortesAbiertas.length > 1 && (
+                        <div className="mb-5 bg-slate-50 border border-slate-200 rounded p-3">
+                            <label htmlFor="cohorte-select" className="block text-xs font-bold uppercase text-slate-600 mb-1">
+                                Cohorte de inscripción
+                            </label>
+                            <select
+                                id="cohorte-select"
+                                value={cohorteElegidaId}
+                                onChange={(e) => setCohorteElegidaId(e.target.value)}
+                                className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
+                            >
+                                {cohortesAbiertas.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.nombre} ({c.anio})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                     {errorEnvio && (
                         <div role="alert" className="mb-5 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
                             {errorEnvio}
@@ -694,7 +776,14 @@ export default function InscripcionAspirante() {
                                     />
                                 </label>
                             </div>
-                            {archivoPreinscripcion && archivoPreinscripcion.length > 0 && !errors.archivo_preinscripcion && <span className="text-sm text-green-600 mt-1">✓ {archivoPreinscripcion[0].name}</span>}
+                            {archivoPreinscripcion && archivoPreinscripcion.length > 0 && !errors.archivo_preinscripcion && (
+                                <div className="flex items-center justify-between mt-1">
+                                    <span className="text-sm text-green-600">✓ {archivoPreinscripcion[0].name}</span>
+                                    <button type="button" onClick={() => abrirVistaPreviaPdf(archivoPreinscripcion)} className="text-xs font-semibold text-blue-700 hover:underline">
+                                        Vista previa PDF
+                                    </button>
+                                </div>
+                            )}
                             {errors.archivo_preinscripcion && <span className="text-red-500 text-xs text-right mt-1">{errors.archivo_preinscripcion.message as string}</span>}
                         </div>
 
@@ -713,7 +802,14 @@ export default function InscripcionAspirante() {
                                     />
                                 </label>
                             </div>
-                            {archivoDni && archivoDni.length > 0 && !errors.archivo_dni && <span className="text-sm text-green-600 mt-1">✓ {archivoDni[0].name}</span>}
+                            {archivoDni && archivoDni.length > 0 && !errors.archivo_dni && (
+                                <div className="flex items-center justify-between mt-1">
+                                    <span className="text-sm text-green-600">✓ {archivoDni[0].name}</span>
+                                    <button type="button" onClick={() => abrirVistaPreviaPdf(archivoDni)} className="text-xs font-semibold text-blue-700 hover:underline">
+                                        Vista previa PDF
+                                    </button>
+                                </div>
+                            )}
                             {errors.archivo_dni && <span className="text-red-500 text-xs text-right mt-1">{errors.archivo_dni.message as string}</span>}
                         </div>
 
@@ -732,7 +828,14 @@ export default function InscripcionAspirante() {
                                     />
                                 </label>
                             </div>
-                            {archivoTitulo && archivoTitulo.length > 0 && !errors.archivo_titulo && <span className="text-sm text-green-600 mt-1">✓ {archivoTitulo[0].name}</span>}
+                            {archivoTitulo && archivoTitulo.length > 0 && !errors.archivo_titulo && (
+                                <div className="flex items-center justify-between mt-1">
+                                    <span className="text-sm text-green-600">✓ {archivoTitulo[0].name}</span>
+                                    <button type="button" onClick={() => abrirVistaPreviaPdf(archivoTitulo)} className="text-xs font-semibold text-blue-700 hover:underline">
+                                        Vista previa PDF
+                                    </button>
+                                </div>
+                            )}
                             {errors.archivo_titulo && <span className="text-red-500 text-xs text-right mt-1">{errors.archivo_titulo.message as string}</span>}
                         </div>
 
@@ -751,7 +854,14 @@ export default function InscripcionAspirante() {
                                     />
                                 </label>
                             </div>
-                            {archivoPartida && archivoPartida.length > 0 && !errors.archivo_partida && <span className="text-sm text-green-600 mt-1">✓ {archivoPartida[0].name}</span>}
+                            {archivoPartida && archivoPartida.length > 0 && !errors.archivo_partida && (
+                                <div className="flex items-center justify-between mt-1">
+                                    <span className="text-sm text-green-600">✓ {archivoPartida[0].name}</span>
+                                    <button type="button" onClick={() => abrirVistaPreviaPdf(archivoPartida)} className="text-xs font-semibold text-blue-700 hover:underline">
+                                        Vista previa PDF
+                                    </button>
+                                </div>
+                            )}
                             {errors.archivo_partida && <span className="text-red-500 text-xs text-right mt-1">{errors.archivo_partida.message as string}</span>}
                         </div>
 
@@ -770,7 +880,14 @@ export default function InscripcionAspirante() {
                                     />
                                 </label>
                             </div>
-                            {archivoCuit && archivoCuit.length > 0 && !errors.archivo_cuit && <span className="text-sm text-green-600 mt-1">✓ {archivoCuit[0].name}</span>}
+                            {archivoCuit && archivoCuit.length > 0 && !errors.archivo_cuit && (
+                                <div className="flex items-center justify-between mt-1">
+                                    <span className="text-sm text-green-600">✓ {archivoCuit[0].name}</span>
+                                    <button type="button" onClick={() => abrirVistaPreviaPdf(archivoCuit)} className="text-xs font-semibold text-blue-700 hover:underline">
+                                        Vista previa PDF
+                                    </button>
+                                </div>
+                            )}
                             {errors.archivo_cuit && <span className="text-red-500 text-xs text-right mt-1">{errors.archivo_cuit.message as string}</span>}
                         </div>
 
@@ -857,6 +974,28 @@ export default function InscripcionAspirante() {
                     </p>
                     </form>
                     </>
+                )}
+
+                {pdfPreview && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full p-4 space-y-3">
+                            <div className="flex justify-between items-center">
+                                <h3 className="font-bold text-sm truncate">Vista previa: {pdfPreview.nombre}</h3>
+                                <button
+                                    type="button"
+                                    onClick={cerrarVistaPreviaPdf}
+                                    className="text-slate-600 hover:text-slate-900 font-bold text-lg px-2"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <iframe
+                                src={pdfPreview.url}
+                                title={`Vista previa de ${pdfPreview.nombre}`}
+                                className="w-full h-[70vh] border border-slate-200 rounded"
+                            />
+                        </div>
+                    </div>
                 )}
             </main>
 

@@ -267,3 +267,12 @@ def test_preflight_cors_para_operaciones_del_modulo(entorno) -> None:
         assert respuesta.status_code == 200
         assert respuesta.headers["access-control-allow-origin"] == settings.cors_origin
         assert respuesta.headers["access-control-allow-credentials"] == "true"
+
+
+def test_cpr_puede_listar_legajos_para_seleccionar_estudiante(entorno) -> None:
+    cliente, _, legajo, credenciales = entorno
+    resp = cliente.get("/api/v1/cpr/legajos", headers=_cabecera(credenciales, "CPR"))
+    assert resp.status_code == 200
+    datos = resp.json()
+    assert len(datos) == 1
+    assert datos[0]["id"] == str(legajo.id)

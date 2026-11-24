@@ -12,6 +12,8 @@ import GestionDocente from './pages/GestionDocente';
 import GestionLegajos from './pages/GestionLegajos';
 import SeguimientoGraduacion from './pages/SeguimientoGraduacion';
 import TrabajosFinalesCPR from './pages/TrabajosFinalesCPR';
+import PlanillaDocente from './pages/PlanillaDocente';
+import SeguimientoInscripcion from './pages/SeguimientoInscripcion';
 
 const NotFound = () => <div className="p-10 text-xl text-red-500 text-center mt-10">404 - Página no encontrada</div>;
 
@@ -23,11 +25,13 @@ function App() {
           {/* Vistas Públicas */}
           <Route path="/" element={<Navigate to="/inscripcion" replace />} />
           <Route path="/inscripcion" element={<InscripcionAspirante />} />
+          <Route path="/seguimiento" element={<SeguimientoInscripcion />} />
+          <Route path="/docente/seminarios/:id" element={<PlanillaDocente />} />
           <Route path="/login" element={<Login />} />
           <Route element={<RequireRole roles={['COORDINADOR', 'CPR', 'ADMIN']} />}>
             <Route path="/acceso" element={<AuthLanding />} />
           </Route>
-          <Route element={<RequireRole roles={['COORDINADOR']} />}>
+          <Route element={<RequireRole roles={['COORDINADOR', 'ADMIN']} />}>
             <Route path="/coordinador" element={<CoordinadorLayout />}>
               <Route index element={<Navigate to="legajos" replace />} />
               <Route path="legajos" element={<GestionLegajos />} />

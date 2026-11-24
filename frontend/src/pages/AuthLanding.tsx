@@ -14,7 +14,7 @@ export default function AuthLanding() {
                     {session?.user.email} · {session?.user.role}
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3">
-                    {session?.user.role === 'COORDINADOR' && (
+                    {(session?.user.role === 'COORDINADOR' || session?.user.role === 'ADMIN') && (
                         <Link
                             to="/coordinador"
                             className="rounded bg-[#2a3441] px-4 py-2 font-semibold text-white hover:bg-slate-700"

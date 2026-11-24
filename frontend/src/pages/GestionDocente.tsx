@@ -639,9 +639,19 @@ export default function GestionDocente() {
                                     </button>
                                 </div>
                                 {enlaceGenerado && (
-                                    <p className="text-xs bg-white border border-slate-200 rounded p-2 break-all">
-                                        <strong>Enlace:</strong> {enlaceGenerado.enlace}
-                                    </p>
+                                    <div className="text-xs bg-white border border-slate-200 rounded p-2 space-y-1 break-all">
+                                        <p>
+                                            <strong>Enlace:</strong> {enlaceGenerado.enlace}
+                                        </p>
+                                        <div className="flex gap-3 pt-1">
+                                            <Link
+                                                to={`/docente/seminarios/${seminarioActual.id}#token=${encodeURIComponent(enlaceGenerado.token)}`}
+                                                className="font-bold text-blue-700 hover:underline"
+                                            >
+                                                Abrir vista pública docente →
+                                            </Link>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </section>

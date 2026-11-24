@@ -1,11 +1,12 @@
-import { useCallback, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 
 import { extraerErrorApi, useApiClient } from '../shared/api/useApiClient';
-import type { TipoCarrera, TipoTrabajoFinal, TrabajoFinal } from '../types';
+import type { LegajoResumenCPR, TipoCarrera, TipoTrabajoFinal, TrabajoFinal } from '../types';
 
 export default function TrabajosFinalesCPR() {
     const { solicitar } = useApiClient();
 
+    const [legajosDisponibles, setLegajosDisponibles] = useState<LegajoResumenCPR[]>([]);
     const [legajoId, setLegajoId] = useState('');
     const [trabajos, setTrabajos] = useState<TrabajoFinal[]>([]);
     const [cargando, setCargando] = useState(false);
@@ -26,6 +27,26 @@ export default function TrabajosFinalesCPR() {
     const [avanceCarrera, setAvanceCarrera] = useState<TipoCarrera>('Especialización');
     const [avanceFecha, setAvanceFecha] = useState(() => new Date().toISOString().slice(0, 10));
     const [avanceDescripcion, setAvanceDescripcion] = useState('');
+
+    useEffect(() => {
+        document.title = 'Trabajos Finales CPR | Sistema de Posgrado';
+        let cancelado = false;
+        const cargarLegajos = async () => {
+            try {
+                const resp = await solicitar('/cpr/legajos');
+                if (resp.ok && !cancelado) {
+                    const lista: LegajoResumenCPR[] = await resp.json();
+                    setLegajosDisponibles(lista);
+                }
+            } catch {
+                // Si falla, el usuario aún puede ingresar el UUID manualmente
+            }
+        };
+        void cargarLegajos();
+        return () => {
+            cancelado = true;
+        };
+    }, [solicitar]);
 
     const buscarTrabajos = useCallback(async (idBuscar: string) => {
         if (!idBuscar.trim()) return;
@@ -151,25 +172,50 @@ export default function TrabajosFinalesCPR() {
                 </div>
             )}
 
-            <div className="flex flex-wrap gap-3 items-end bg-slate-50 p-4 rounded-lg border border-slate-200">
-                <div className="flex-1 min-w-[260px]">
-                    <label className="block text-xs font-bold mb-1 uppercase text-slate-600">UUID del Legajo</label>
-                    <input
-                        type="text"
-                        value={legajoId}
-                        onChange={(e) => setLegajoId(e.target.value)}
-                        placeholder="Ej: 550e8400-e29b-41d4-a716-446655440000"
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end bg-slate-50 p-4 rounded-lg border border-slate-200">
+                <div>
+                    <label className="block text-xs font-bold mb-1 uppercase text-slate-600">
+                        Seleccionar Estudiante Activo / Graduado
+                    </label>
+                    <select
+                        value={legajosDisponibles.some((l) => l.id === legajoId) ? legajoId : ''}
+                        onChange={(e) => {
+                            const elegido = e.target.value;
+                            setLegajoId(elegido);
+                            if (elegido) {
+                                void buscarTrabajos(elegido);
+                            }
+                        }}
                         className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
-                    />
+                    >
+                        <option value="">Seleccioná un estudiante del padrón...</option>
+                        {legajosDisponibles.map((l) => (
+                            <option key={l.id} value={l.id}>
+                                {l.apellido}, {l.nombre} — DNI {l.dni} {l.numero_legajo ? `(${l.numero_legajo})` : ''} · {l.carreras.join(', ')}
+                            </option>
+                        ))}
+                    </select>
                 </div>
-                <button
-                    type="button"
-                    disabled={cargando || !legajoId.trim()}
-                    onClick={() => void buscarTrabajos(legajoId)}
-                    className="bg-[#2a3441] text-white px-5 py-2 rounded text-sm font-semibold hover:bg-slate-700 disabled:opacity-50"
-                >
-                    {cargando ? 'Buscando...' : 'Buscar Trabajos'}
-                </button>
+                <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                        <label className="block text-xs font-bold mb-1 uppercase text-slate-600">UUID del Legajo</label>
+                        <input
+                            type="text"
+                            value={legajoId}
+                            onChange={(e) => setLegajoId(e.target.value)}
+                            placeholder="Ej: 550e8400-e29b-41d4-a716-446655440000"
+                            className="w-full border border-slate-300 rounded p-2 text-sm bg-white font-mono"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        disabled={cargando || !legajoId.trim()}
+                        onClick={() => void buscarTrabajos(legajoId)}
+                        className="bg-[#2a3441] text-white px-5 py-2 rounded text-sm font-semibold hover:bg-slate-700 disabled:opacity-50"
+                    >
+                        {cargando ? 'Buscando...' : 'Buscar Trabajos'}
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

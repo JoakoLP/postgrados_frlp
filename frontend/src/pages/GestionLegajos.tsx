@@ -73,6 +73,14 @@ export default function GestionLegajos() {
     const [cargandoDetalle, setCargandoDetalle] = useState(false);
     const [procesandoId, setProcesandoId] = useState<string | null>(null);
 
+    // Gestión de cohortes (BR-009)
+    const [mostrarGestionCohortes, setMostrarGestionCohortes] = useState(false);
+    const [nuevoAnioCohorte, setNuevoAnioCohorte] = useState(() => String(new Date().getFullYear() + 1));
+    const [nuevoNombreCohorte, setNuevoNombreCohorte] = useState('');
+    const [nuevaFechaInicioCohorte, setNuevaFechaInicioCohorte] = useState('');
+    const [nuevaAbiertaCohorte, setNuevaAbiertaCohorte] = useState(false);
+    const [fechasReapertura, setFechasReapertura] = useState<Record<string, string>>({});
+
     useEffect(() => {
         document.title = 'Gestión de Legajos | Sistema de Posgrado';
     }, []);
@@ -117,6 +125,18 @@ export default function GestionLegajos() {
         }
     }, [construirQuery, solicitar]);
 
+    const cargarCohortes = useCallback(async () => {
+        try {
+            const resp = await solicitar('/cohortes/gestion');
+            if (resp.ok) {
+                const datos: Cohorte[] = await resp.json();
+                setCohortes(datos);
+            }
+        } catch {
+            // Si falla la carga de cohortes, se mantiene lista vacía
+        }
+    }, [solicitar]);
+
     useEffect(() => {
         let cancelado = false;
         const ejecutar = async () => {
@@ -135,6 +155,69 @@ export default function GestionLegajos() {
             cancelado = true;
         };
     }, [solicitar]);
+
+    const handleCrearCohorte = async () => {
+        const anioNum = Number(nuevoAnioCohorte);
+        if (!nuevoNombreCohorte.trim() || Number.isNaN(anioNum)) {
+            setError('Completá el año y el nombre de la nueva cohorte.');
+            return;
+        }
+        setError(null);
+        setMensajeExito(null);
+        try {
+            const resp = await solicitar('/cohortes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    anio: anioNum,
+                    nombre: nuevoNombreCohorte.trim(),
+                    fecha_inicio: nuevaFechaInicioCohorte || null,
+                    inscripcion_abierta: nuevaAbiertaCohorte,
+                }),
+            });
+            if (!resp.ok) {
+                throw new Error(await extraerErrorApi(resp, 'No se pudo crear la cohorte.'));
+            }
+            setMensajeExito(`Cohorte "${nuevoNombreCohorte.trim()}" creada.`);
+            setNuevoNombreCohorte('');
+            setNuevaFechaInicioCohorte('');
+            setNuevaAbiertaCohorte(false);
+            await cargarCohortes();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'No se pudo crear la cohorte.');
+        }
+    };
+
+    const handleCambiarInscripcionCohorte = async (cohorte: Cohorte, abrir: boolean) => {
+        setError(null);
+        setMensajeExito(null);
+        const fechaProxima = fechasReapertura[cohorte.id]?.trim() || null;
+        if (!abrir && !fechaProxima) {
+            setError('Para cerrar el período de inscripción debés indicar la próxima fecha prevista de apertura.');
+            return;
+        }
+        try {
+            const resp = await solicitar(`/cohortes/${cohorte.id}/inscripcion`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    inscripcion_abierta: abrir,
+                    fecha_proxima_apertura: abrir ? null : fechaProxima,
+                }),
+            });
+            if (!resp.ok) {
+                throw new Error(await extraerErrorApi(resp, 'No se pudo actualizar el período de inscripción.'));
+            }
+            setMensajeExito(
+                abrir
+                    ? `Inscripción abierta para ${cohorte.nombre}.`
+                    : `Inscripción cerrada para ${cohorte.nombre} (próxima apertura: ${fechaProxima}).`,
+            );
+            await cargarCohortes();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'No se pudo actualizar el período de inscripción.');
+        }
+    };
 
     useEffect(() => {
         let cancelado = false;
@@ -232,10 +315,136 @@ export default function GestionLegajos() {
     return (
         <div className="flex flex-col flex-grow bg-white font-sans text-slate-800 p-8">
             <main className="max-w-6xl mx-auto w-full flex-grow flex flex-col">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold mb-2">Gestión de Legajos</h1>
-                    <h2 className="text-slate-500">Revisión de aspirantes y generación de matrículas</h2>
+                <div className="flex flex-wrap justify-between items-center gap-4 mb-8">
+                    <div>
+                        <h1 className="text-3xl font-bold mb-2">Gestión de Legajos</h1>
+                        <h2 className="text-slate-500">Revisión de aspirantes, cohortes y generación de matrículas</h2>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setMostrarGestionCohortes((prev) => !prev)}
+                        className="border-2 border-slate-800 px-4 py-2 rounded text-sm font-bold hover:bg-slate-50 transition-colors"
+                    >
+                        {mostrarGestionCohortes ? 'Ocultar Gestión de Cohortes' : 'Gestionar Cohortes e Inscripción'}
+                    </button>
                 </div>
+
+                {mostrarGestionCohortes && (
+                    <section className="mb-6 bg-slate-50 border border-slate-200 rounded-lg p-5 space-y-4">
+                        <h3 className="font-bold text-sm uppercase text-slate-600">
+                            Cohortes y Períodos de Inscripción (BR-009)
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end border-b border-slate-200 pb-4">
+                            <div>
+                                <label className="block text-xs font-bold mb-1">Año</label>
+                                <input
+                                    type="number"
+                                    value={nuevoAnioCohorte}
+                                    onChange={(e) => setNuevoAnioCohorte(e.target.value)}
+                                    className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold mb-1">Nombre</label>
+                                <input
+                                    type="text"
+                                    value={nuevoNombreCohorte}
+                                    onChange={(e) => setNuevoNombreCohorte(e.target.value)}
+                                    placeholder="Ej: Cohorte 2028"
+                                    className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold mb-1">Fecha de inicio</label>
+                                <input
+                                    type="date"
+                                    value={nuevaFechaInicioCohorte}
+                                    onChange={(e) => setNuevaFechaInicioCohorte(e.target.value)}
+                                    className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                                <label className="inline-flex items-center gap-1.5 text-xs font-semibold">
+                                    <input
+                                        type="checkbox"
+                                        checked={nuevaAbiertaCohorte}
+                                        onChange={(e) => setNuevaAbiertaCohorte(e.target.checked)}
+                                    />
+                                    Abrir inscripción
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleCrearCohorte()}
+                                    className="bg-[#2a3441] text-white px-4 py-2 rounded text-xs font-semibold hover:bg-slate-700"
+                                >
+                                    + Crear Cohorte
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            {cohortes.map((c) => (
+                                <div
+                                    key={c.id}
+                                    className="bg-white border border-slate-200 rounded p-3 flex flex-wrap justify-between items-center gap-3 text-sm"
+                                >
+                                    <div>
+                                        <span className="font-bold">
+                                            {c.nombre} ({c.anio})
+                                        </span>
+                                        <span
+                                            className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${
+                                                c.inscripcion_abierta
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-slate-200 text-slate-700'
+                                            }`}
+                                        >
+                                            {c.inscripcion_abierta ? 'Inscripción Abierta' : 'Cerrada'}
+                                        </span>
+                                        {c.fecha_proxima_apertura && !c.inscripcion_abierta && (
+                                            <span className="ml-2 text-xs text-slate-500">
+                                                Próxima apertura: {c.fecha_proxima_apertura}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {c.inscripcion_abierta ? (
+                                            <>
+                                                <input
+                                                    type="date"
+                                                    aria-label={`Próxima apertura para ${c.nombre}`}
+                                                    value={fechasReapertura[c.id] ?? ''}
+                                                    onChange={(e) =>
+                                                        setFechasReapertura((prev) => ({
+                                                            ...prev,
+                                                            [c.id]: e.target.value,
+                                                        }))
+                                                    }
+                                                    className="border border-slate-300 rounded p-1 text-xs"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleCambiarInscripcionCohorte(c, false)}
+                                                    className="border border-red-700 text-red-700 rounded px-3 py-1 text-xs font-semibold hover:bg-red-50"
+                                                >
+                                                    Cerrar inscripción
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleCambiarInscripcionCohorte(c, true)}
+                                                className="border border-green-700 text-green-800 rounded px-3 py-1 text-xs font-semibold hover:bg-green-50"
+                                            >
+                                                Abrir inscripción
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                )}
 
                 {error && (
                     <div className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800" role="alert">

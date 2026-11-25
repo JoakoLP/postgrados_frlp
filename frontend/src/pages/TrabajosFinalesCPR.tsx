@@ -3,12 +3,22 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { extraerErrorApi, useApiClient } from '../shared/api/useApiClient';
 import type { LegajoResumenCPR, TipoCarrera, TipoTrabajoFinal, TrabajoFinal } from '../types';
 
+interface AvanceTesis {
+    id: string;
+    legajo_id: string;
+    carrera: TipoCarrera;
+    fecha: string;
+    descripcion: string;
+}
+
 export default function TrabajosFinalesCPR() {
     const { solicitar } = useApiClient();
 
     const [legajosDisponibles, setLegajosDisponibles] = useState<LegajoResumenCPR[]>([]);
     const [legajoId, setLegajoId] = useState('');
+    const [dniBusqueda, setDniBusqueda] = useState('');
     const [trabajos, setTrabajos] = useState<TrabajoFinal[]>([]);
+    const [avances, setAvances] = useState<AvanceTesis[]>([]);
     const [cargando, setCargando] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [mensaje, setMensaje] = useState<string | null>(null);
@@ -54,14 +64,23 @@ export default function TrabajosFinalesCPR() {
         setError(null);
         setMensaje(null);
         try {
-            const resp = await solicitar(`/legajos/${idBuscar.trim()}/trabajo-final`);
-            if (!resp.ok) {
-                throw new Error(await extraerErrorApi(resp, 'No se pudieron consultar los trabajos finales.'));
+            const [respTrabajos, respAvances] = await Promise.all([
+                solicitar(`/legajos/${idBuscar.trim()}/trabajo-final`),
+                solicitar(`/legajos/${idBuscar.trim()}/avances-tesis`),
+            ]);
+            if (!respTrabajos.ok) {
+                throw new Error(await extraerErrorApi(respTrabajos, 'No se pudieron consultar los trabajos finales.'));
             }
-            setTrabajos(await resp.json());
+            setTrabajos(await respTrabajos.json());
+            if (respAvances.ok) {
+                setAvances(await respAvances.json());
+            } else {
+                setAvances([]);
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'No se pudieron consultar los trabajos finales.');
             setTrabajos([]);
+            setAvances([]);
         } finally {
             setCargando(false);
         }
@@ -78,10 +97,27 @@ export default function TrabajosFinalesCPR() {
         setNumeroResolucion('');
     };
 
+    const handleBuscarPorDni = () => {
+        const dniLimpio = dniBusqueda.replace(/[.\s]/g, '').trim();
+        if (!dniLimpio) {
+            setError('Ingresá el DNI del estudiante.');
+            return;
+        }
+        const encontrado = legajosDisponibles.find((l) => l.dni === dniLimpio);
+        if (!encontrado) {
+            setLegajoId('');
+            setTrabajos([]);
+            setError(`No se encontró un estudiante activo o graduado con DNI ${dniLimpio}.`);
+            return;
+        }
+        setLegajoId(encontrado.id);
+        void buscarTrabajos(encontrado.id);
+    };
+
     const handleGuardarTrabajo = async (evento: FormEvent) => {
         evento.preventDefault();
         if (!legajoId.trim()) {
-            setError('Ingresá el UUID del legajo.');
+            setError('Seleccioná un estudiante o buscalo por DNI.');
             return;
         }
         setError(null);
@@ -118,7 +154,7 @@ export default function TrabajosFinalesCPR() {
     const handleRegistrarAvance = async (evento: FormEvent) => {
         evento.preventDefault();
         if (!legajoId.trim()) {
-            setError('Ingresá el UUID del legajo.');
+            setError('Seleccioná un estudiante o buscalo por DNI.');
             return;
         }
         setError(null);
@@ -138,6 +174,7 @@ export default function TrabajosFinalesCPR() {
             }
             setMensaje('Avance de tesis registrado correctamente.');
             setAvanceDescripcion('');
+            await buscarTrabajos(legajoId);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'No se pudo registrar el avance de tesis.');
         }
@@ -182,8 +219,12 @@ export default function TrabajosFinalesCPR() {
                         onChange={(e) => {
                             const elegido = e.target.value;
                             setLegajoId(elegido);
+                            const encontrado = legajosDisponibles.find((l) => l.id === elegido);
+                            setDniBusqueda(encontrado?.dni ?? '');
                             if (elegido) {
                                 void buscarTrabajos(elegido);
+                            } else {
+                                setTrabajos([]);
                             }
                         }}
                         className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
@@ -198,19 +239,28 @@ export default function TrabajosFinalesCPR() {
                 </div>
                 <div className="flex gap-2 items-end">
                     <div className="flex-1">
-                        <label className="block text-xs font-bold mb-1 uppercase text-slate-600">UUID del Legajo</label>
+                        <label htmlFor="dni-estudiante-cpr" className="block text-xs font-bold mb-1 uppercase text-slate-600">
+                            DNI del Estudiante
+                        </label>
                         <input
+                            id="dni-estudiante-cpr"
                             type="text"
-                            value={legajoId}
-                            onChange={(e) => setLegajoId(e.target.value)}
-                            placeholder="Ej: 550e8400-e29b-41d4-a716-446655440000"
+                            value={dniBusqueda}
+                            onChange={(e) => setDniBusqueda(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleBuscarPorDni();
+                                }
+                            }}
+                            placeholder="Ej: 38123456"
                             className="w-full border border-slate-300 rounded p-2 text-sm bg-white font-mono"
                         />
                     </div>
                     <button
                         type="button"
-                        disabled={cargando || !legajoId.trim()}
-                        onClick={() => void buscarTrabajos(legajoId)}
+                        disabled={cargando || !dniBusqueda.trim()}
+                        onClick={handleBuscarPorDni}
                         className="bg-[#2a3441] text-white px-5 py-2 rounded text-sm font-semibold hover:bg-slate-700 disabled:opacity-50"
                     >
                         {cargando ? 'Buscando...' : 'Buscar Trabajos'}
@@ -319,6 +369,29 @@ export default function TrabajosFinalesCPR() {
                             </button>
                         </div>
                     ))}
+                </section>
+            )}
+
+            {legajoId && (
+                <section className="space-y-3">
+                    <h2 className="font-bold text-lg">Avances de Tesis ({avances.length})</h2>
+                    {avances.length === 0 ? (
+                        <p className="text-sm text-slate-500 border border-slate-200 rounded-lg p-4 bg-slate-50">
+                            Este estudiante aún no tiene avances de tesis registrados.
+                        </p>
+                    ) : (
+                        <div className="space-y-2">
+                            {avances.map((av) => (
+                                <div key={av.id} className="border border-slate-200 rounded-lg p-4 text-sm space-y-1">
+                                    <div className="flex justify-between items-center gap-2">
+                                        <span className="font-bold">{av.carrera}</span>
+                                        <span className="text-xs font-mono text-slate-500">{av.fecha}</span>
+                                    </div>
+                                    <p className="text-slate-700">{av.descripcion}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </section>
             )}
         </main>

@@ -127,7 +127,17 @@ class TransicionLegajoRequest(BaseModel):
 
 
 class CorreccionLegajoRequest(BaseModel):
-    token: str = Field(min_length=43, max_length=128)
+    token: str = Field(min_length=6, max_length=128)
+
+
+class CorreccionPorIdentificadorRequest(BaseModel):
+    identificador: str = Field(min_length=3, max_length=200)
+    token: str = Field(min_length=6, max_length=128)
+
+
+class SeguimientoConsultaRequest(BaseModel):
+    identificador: str = Field(min_length=3, max_length=200)
+    codigo: str = Field(min_length=6, max_length=128)
 
 
 class LegajoEstadoResponse(BaseModel):

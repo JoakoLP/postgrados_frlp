@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from src.autenticacion.infraestructura.modelos import User
 from src.db.session import get_db
+from src.inscripcion.application.acceso_propietario import obtener_legajo_por_token
 from src.inscripcion.application.estado_documental import evaluar_estado_documental
 from src.inscripcion.infrastructure.models import Cohorte, Legajo
 from src.inscripcion.presentation.schemas import (
@@ -23,6 +24,7 @@ from src.inscripcion.presentation.schemas import (
     EstadoDocumentalResponse,
     LegajoDetalleResponse,
     LegajoListadoResponse,
+    SeguimientoConsultaRequest,
 )
 from src.inscripcion.presentation.acceso_legajo import (
     autorizar_dueno_o_coordinador,
@@ -274,24 +276,15 @@ def exportar_legajos(
     )
 
 
-@router.get("/{id}", response_model=LegajoDetalleResponse)
-def obtener_legajo(
-    id: UUID,
-    session: Session = Depends(get_db),
-    credenciales: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> LegajoDetalleResponse:
-    credenciales = exigir_credencial(credenciales)
-    legajo = session.scalar(
-        select(Legajo)
-        .options(selectinload(Legajo.documentos))
-        .where(Legajo.id == id)
-    )
-    if legajo is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail="No se encontró el legajo solicitado",
-        )
-    autorizar_dueno_o_coordinador(legajo, credenciales, session)
+def _coincide_identificador(legajo: Legajo, identificador: str) -> bool:
+    limpio = identificador.strip()
+    if "@" in limpio:
+        return legajo.email.lower() == limpio.lower()
+    dni_limpio = limpio.replace(".", "").replace(" ", "")
+    return legajo.dni == dni_limpio or legajo.email.lower() == limpio.lower()
+
+
+def _construir_detalle_legajo(legajo: Legajo) -> LegajoDetalleResponse:
     evaluacion = evaluar_estado_documental(legajo)
     return LegajoDetalleResponse(
         id=legajo.id,
@@ -330,6 +323,46 @@ def obtener_legajo(
         estado_documental=evaluacion.estado,
         documentos_faltantes=list(evaluacion.faltantes),
     )
+
+
+@router.post("/seguimiento", response_model=LegajoDetalleResponse)
+def consultar_seguimiento(
+    solicitud: SeguimientoConsultaRequest,
+    session: Session = Depends(get_db),
+) -> LegajoDetalleResponse:
+    legajo = obtener_legajo_por_token(session, solicitud.codigo)
+    if legajo is None or not _coincide_identificador(legajo, solicitud.identificador):
+        raise HTTPException(
+            status_code=HTTPStatus.UNAUTHORIZED,
+            detail="Email/DNI o código de acceso inválido o vencido",
+        )
+    legajo_con_docs = session.scalar(
+        select(Legajo)
+        .options(selectinload(Legajo.documentos))
+        .where(Legajo.id == legajo.id)
+    )
+    return _construir_detalle_legajo(legajo_con_docs or legajo)
+
+
+@router.get("/{id}", response_model=LegajoDetalleResponse)
+def obtener_legajo(
+    id: UUID,
+    session: Session = Depends(get_db),
+    credenciales: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> LegajoDetalleResponse:
+    credenciales = exigir_credencial(credenciales)
+    legajo = session.scalar(
+        select(Legajo)
+        .options(selectinload(Legajo.documentos))
+        .where(Legajo.id == id)
+    )
+    if legajo is None:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail="No se encontró el legajo solicitado",
+        )
+    autorizar_dueno_o_coordinador(legajo, credenciales, session)
+    return _construir_detalle_legajo(legajo)
 
 
 @router.get("/{id}/estado-documental", response_model=EstadoDocumentalResponse)

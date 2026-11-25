@@ -8,22 +8,25 @@ export default function MainLayout() {
 
     return (
         <div className="min-h-screen flex flex-col bg-white font-sans text-slate-800">
-            <nav className="bg-blue-900 text-white p-4 flex flex-wrap gap-4 shadow-md">
-                <Link to="/inscripcion" className="hover:underline">Formulario de inscripción</Link>
-                <Link to="/seguimiento" className="hover:underline">Seguimiento de inscripción</Link>
-                {(session?.user.role === 'COORDINADOR' || session?.user.role === 'ADMIN') && (
-                    <Link to="/coordinador" className="hover:underline">Gestión de coordinación</Link>
-                )}
-                {session?.user.role === 'CPR' && (
-                    <Link to="/cpr/trabajos-finales" className="hover:underline">Trabajos Finales (CPR)</Link>
-                )}
-            </nav>
-            <header className="flex justify-between items-center p-4 border-b-2 border-slate-800">
-                <Link to="/" className="w-12 h-12 border-2 border-slate-800 flex flex-col items-center justify-center font-bold text-xs leading-none hover:bg-slate-50 transition-colors">
-                    <span>UTN</span>
-                </Link>
+            <header className="flex flex-wrap justify-between items-center gap-4 p-4 border-b-2 border-slate-800 bg-white">
+                <div className="flex flex-wrap items-center gap-6">
+                    <Link to="/" className="w-12 h-12 border-2 border-slate-800 flex flex-col items-center justify-center font-bold text-xs leading-none hover:bg-slate-50 transition-colors shrink-0">
+                        <span>UTN</span>
+                    </Link>
 
-                <div className="flex gap-4">
+                    <nav className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-700">
+                        <Link to="/inscripcion" className="hover:text-slate-950 hover:underline">Formulario de inscripción</Link>
+                        <Link to="/seguimiento" className="hover:text-slate-950 hover:underline">Seguimiento de inscripción</Link>
+                        {(session?.user.role === 'COORDINADOR' || session?.user.role === 'ADMIN') && (
+                            <Link to="/coordinador" className="hover:text-slate-950 hover:underline">Gestión de coordinación</Link>
+                        )}
+                        {session?.user.role === 'CPR' && (
+                            <Link to="/cpr/trabajos-finales" className="hover:text-slate-950 hover:underline">Trabajos Finales (CPR)</Link>
+                        )}
+                    </nav>
+                </div>
+
+                <div className="flex gap-4 items-center">
                     {session ? (
                         <>
                             <span className="hidden self-center text-sm sm:inline">{session.user.email}</span>

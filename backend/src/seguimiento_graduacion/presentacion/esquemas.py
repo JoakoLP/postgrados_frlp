@@ -113,6 +113,26 @@ class AsignacionRespuesta(BaseModel):
     usuario_id: UUID
 
 
+class CoordinadorDisponibleRespuesta(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    email: str
+
+
+class CrearCoordinador(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: Annotated[str, StringConstraints(strip_whitespace=True, min_length=5, max_length=254)]
+    password: Annotated[str, StringConstraints(min_length=8, max_length=128)]
+
+    @field_validator("email")
+    @classmethod
+    def normalizar_email(cls, valor: str) -> str:
+        normalizado = valor.strip().lower()
+        if "@" not in normalizado or "." not in normalizado.split("@", 1)[-1]:
+            raise ValueError("Ingresá un correo electrónico válido")
+        return normalizado
+
+
 class CrearAvance(BaseModel):
     model_config = ConfigDict(extra="forbid")
     carrera: Carrera

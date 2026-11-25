@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.autenticacion.infraestructura.modelos import User
+from src.inscripcion.application.acceso_propietario import generar_codigo_corto
 from src.inscripcion.infrastructure.models import Cohorte, Legajo
 from src.shared.auditoria.servicio import registrar_evento_auditoria
 
@@ -112,7 +113,7 @@ def transicionar_legajo(
     if accion == "APROBAR":
         legajo.numero_legajo = _generar_numero_legajo(session, legajo)
     elif accion == "OBSERVAR":
-        token_correccion = secrets.token_urlsafe(32)
+        token_correccion = generar_codigo_corto()
         legajo.token_correccion_hash = hashlib.sha256(
             token_correccion.encode("ascii")
         ).hexdigest()
@@ -151,8 +152,15 @@ def corregir_legajo(
     ):
         raise TokenCorreccionInvalido
 
-    hash_token = hashlib.sha256(token.encode("ascii")).hexdigest()
-    if not hmac.compare_digest(hash_token, legajo.token_correccion_hash):
+    limpio = token.strip()
+    candidatos = [limpio] if limpio == limpio.upper() else [limpio, limpio.upper()]
+    if not any(
+        hmac.compare_digest(
+            hashlib.sha256(c.encode("ascii")).hexdigest(),
+            legajo.token_correccion_hash,
+        )
+        for c in candidatos
+    ):
         raise TokenCorreccionInvalido
 
     vence_en = legajo.token_correccion_expira_en

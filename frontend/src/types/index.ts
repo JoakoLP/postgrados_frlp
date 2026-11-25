@@ -238,6 +238,11 @@ export interface AsignacionCoordinador {
     usuario_id: string;
 }
 
+export interface CoordinadorDisponible {
+    id: string;
+    email: string;
+}
+
 export interface EstadisticaCohorte {
     cohorte_id: string;
     cohorte_nombre: string;

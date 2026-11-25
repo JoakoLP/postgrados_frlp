@@ -80,11 +80,13 @@ describe('Renderizado de páginas principales del Frontend', () => {
     it('renderiza el Portal de Seguimiento y Subsanación para el Aspirante (/seguimiento)', () => {
         const html = renderVista(
             React.createElement(SeguimientoInscripcion),
-            ['/seguimiento?id=9b1ecf1e-c205-43a3-a22b-ed7c24291893'],
+            ['/seguimiento?email=alumno@mail.com&codigo=A7K3-9M2P'],
         );
         assert.match(html, /Seguimiento de Inscripción y Legajo/);
-        assert.match(html, /9b1ecf1e-c205-43a3-a22b-ed7c24291893/);
-        assert.match(html, /Token privado de propietario/);
+        assert.match(html, /alumno@mail\.com/);
+        assert.match(html, /A7K3-9M2P/);
+        assert.match(html, /Email o DNI/);
+        assert.match(html, /Código de acceso/);
         assert.match(html, /Confirmar corrección de legajo observado/);
     });
 

@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from src.autenticacion.aplicacion.seguridad import hash_password
 from src.autenticacion.infraestructura.modelos import User
 from src.db.session import get_db
 from src.inscripcion.infrastructure.models import Cohorte, Legajo
@@ -23,7 +24,9 @@ from src.seguimiento_graduacion.presentacion.esquemas import (
     AsignacionRespuesta,
     AvanceRespuesta,
     ConfirmarPlan,
+    CoordinadorDisponibleRespuesta,
     CrearAsignacion,
+    CrearCoordinador,
     CrearAvance,
     EstadisticaCohorteRespuesta,
     EstadisticasConduccionRespuesta,
@@ -127,6 +130,51 @@ def asignar_coordinador(
     return asignacion
 
 
+@router.get("/graduacion/coordinadores", response_model=list[CoordinadorDisponibleRespuesta])
+def listar_coordinadores_activos(
+    session: Session = Depends(get_db),
+    _: User = Depends(requerir_roles("ADMIN", "COORDINADOR")),
+) -> list[User]:
+    return list(
+        session.scalars(
+            select(User)
+            .where(User.role == "COORDINADOR", User.is_active.is_(True))
+            .order_by(User.email)
+        )
+    )
+
+
+@router.post("/graduacion/coordinadores", response_model=CoordinadorDisponibleRespuesta, status_code=201)
+def crear_coordinador(
+    datos: CrearCoordinador,
+    session: Session = Depends(get_db),
+    usuario: User = Depends(requerir_roles("ADMIN", "COORDINADOR")),
+) -> User:
+    existente = session.scalar(select(User.id).where(User.email == datos.email))
+    if existente is not None:
+        raise HTTPException(status_code=409, detail="Ya existe un usuario registrado con ese email")
+    nuevo = User(
+        email=datos.email,
+        password_hash=hash_password(datos.password),
+        role="COORDINADOR",
+        is_active=True,
+    )
+    session.add(nuevo)
+    session.flush()
+    registrar_evento_auditoria(
+        session,
+        accion="crear_coordinador",
+        tipo_recurso="usuario",
+        id_recurso=nuevo.id,
+        id_actor=usuario.id,
+        rol_actor=usuario.role,
+        detalles={"email": nuevo.email},
+    )
+    session.commit()
+    session.refresh(nuevo)
+    return nuevo
+
+
 @router.get("/graduacion/asignaciones", response_model=list[AsignacionRespuesta])
 def listar_asignaciones(
     session: Session = Depends(get_db),
@@ -154,6 +202,23 @@ def quitar_asignacion(
     session.delete(asignacion)
     session.commit()
     return Response(status_code=204)
+
+
+@router.get("/legajos/{id}/avances-tesis", response_model=list[AvanceRespuesta])
+def listar_avances_tesis(
+    id: UUID,
+    session: Session = Depends(get_db),
+    _: User = Depends(requerir_roles("CPR", "COORDINADOR")),
+) -> list[AvanceTesis]:
+    if session.get(Legajo, id) is None:
+        raise HTTPException(status_code=404, detail="No se encontró el legajo")
+    return list(
+        session.scalars(
+            select(AvanceTesis)
+            .where(AvanceTesis.legajo_id == id)
+            .order_by(AvanceTesis.fecha.desc(), AvanceTesis.id)
+        )
+    )
 
 
 @router.post("/legajos/{id}/avances-tesis", response_model=AvanceRespuesta, status_code=201)

@@ -2,6 +2,7 @@ from http import HTTPStatus
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from src.autenticacion.infraestructura.modelos import User
@@ -17,8 +18,10 @@ from src.inscripcion.infrastructure.email import (
     enviar_email_aprobacion,
     enviar_email_observacion,
 )
+from src.inscripcion.infrastructure.models import Legajo
 from src.inscripcion.presentation.schemas import (
     CorreccionLegajoRequest,
+    CorreccionPorIdentificadorRequest,
     LegajoEstadoResponse,
     TransicionLegajoRequest,
 )
@@ -88,6 +91,51 @@ def cambiar_estado_legajo(
         estado=legajo.estado,
         numero_legajo=legajo.numero_legajo,
         mensaje=mensajes[solicitud.accion],
+    )
+
+
+@router.post(
+    "/correccion",
+    response_model=LegajoEstadoResponse,
+)
+def corregir_estado_por_identificador(
+    solicitud: CorreccionPorIdentificadorRequest,
+    session: Session = Depends(get_db),
+) -> LegajoEstadoResponse:
+    limpio = solicitud.identificador.strip()
+    dni_limpio = limpio.replace(".", "").replace(" ", "")
+    legajos = list(
+        session.scalars(
+            select(Legajo)
+            .where(
+                Legajo.estado == "Observado",
+                or_(
+                    func.lower(Legajo.email) == limpio.lower(),
+                    Legajo.dni == dni_limpio,
+                ),
+            )
+            .order_by(Legajo.fecha_inscripcion.desc())
+        )
+    )
+    for candidato in legajos:
+        try:
+            legajo = corregir_legajo(
+                session,
+                legajo_id=candidato.id,
+                token=solicitud.token,
+            )
+            return LegajoEstadoResponse(
+                id=str(legajo.id),
+                estado=legajo.estado,
+                numero_legajo=legajo.numero_legajo,
+                mensaje="El legajo volvió a Pendiente",
+            )
+        except (TokenCorreccionInvalido, UnicodeEncodeError):
+            continue
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="El email/DNI o el código de corrección es inválido o venció",
     )
 
 

@@ -5,6 +5,7 @@ import { extraerErrorApi, useApiClient } from '../shared/api/useApiClient';
 import type {
     AsignacionCoordinador,
     Cohorte,
+    CoordinadorDisponible,
     EstadoSemaforo,
     EstudianteEnRiesgo,
     LegajoListado,
@@ -38,8 +39,14 @@ export default function SeguimientoGraduacion() {
     const [planCarrera, setPlanCarrera] = useState<TipoCarrera>('Especialización');
 
     const [asignaciones, setAsignaciones] = useState<AsignacionCoordinador[]>([]);
+    const [coordinadores, setCoordinadores] = useState<CoordinadorDisponible[]>([]);
     const [asignacionCarrera, setAsignacionCarrera] = useState<TipoCarrera>('Especialización');
-    const [asignacionUsuarioId, setAsignacionUsuarioId] = useState(() => session?.user.id ?? '');
+    const [asignacionUsuarioId, setAsignacionUsuarioId] = useState(() =>
+        session?.user.role === 'COORDINADOR' ? session.user.id : '',
+    );
+    const [mostrarNuevoCoord, setMostrarNuevoCoord] = useState(false);
+    const [nuevoCoordEmail, setNuevoCoordEmail] = useState('');
+    const [nuevoCoordPassword, setNuevoCoordPassword] = useState('');
 
     const [enRiesgo, setEnRiesgo] = useState<EstudianteEnRiesgo[]>([]);
     const [activos, setActivos] = useState<LegajoListado[]>([]);
@@ -61,12 +68,13 @@ export default function SeguimientoGraduacion() {
         setCargando(true);
         setError(null);
         try {
-            const [respCohortes, respPlanes, respRiesgo, respActivos, respAsignaciones] = await Promise.all([
+            const [respCohortes, respPlanes, respRiesgo, respActivos, respAsignaciones, respCoords] = await Promise.all([
                 solicitar('/cohortes/gestion'),
                 solicitar('/graduacion/planes'),
                 solicitar('/graduacion/en-riesgo?limit=100'),
                 solicitar('/legajos?estado=Activo'),
                 solicitar('/graduacion/asignaciones'),
+                solicitar('/graduacion/coordinadores'),
             ]);
 
             if (respCohortes.ok) {
@@ -89,23 +97,31 @@ export default function SeguimientoGraduacion() {
             if (respAsignaciones.ok) {
                 setAsignaciones(await respAsignaciones.json());
             }
+            if (respCoords.ok) {
+                const listaCoords: CoordinadorDisponible[] = await respCoords.json();
+                setCoordinadores(listaCoords);
+                if (listaCoords.length > 0 && !asignacionUsuarioId) {
+                    setAsignacionUsuarioId(listaCoords[0].id);
+                }
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error al cargar datos de graduación.');
         } finally {
             setCargando(false);
         }
-    }, [planCohorteId, solicitar]);
+    }, [asignacionUsuarioId, planCohorteId, solicitar]);
 
     useEffect(() => {
         let cancelado = false;
         const ejecutar = async () => {
             try {
-                const [respCohortes, respPlanes, respRiesgo, respActivos, respAsignaciones] = await Promise.all([
+                const [respCohortes, respPlanes, respRiesgo, respActivos, respAsignaciones, respCoords] = await Promise.all([
                     solicitar('/cohortes/gestion'),
                     solicitar('/graduacion/planes'),
                     solicitar('/graduacion/en-riesgo?limit=100'),
                     solicitar('/legajos?estado=Activo'),
                     solicitar('/graduacion/asignaciones'),
+                    solicitar('/graduacion/coordinadores'),
                 ]);
 
                 if (cancelado) return;
@@ -128,6 +144,13 @@ export default function SeguimientoGraduacion() {
                 }
                 if (respAsignaciones.ok) {
                     setAsignaciones(await respAsignaciones.json());
+                }
+                if (respCoords.ok) {
+                    const listaCoords: CoordinadorDisponible[] = await respCoords.json();
+                    setCoordinadores(listaCoords);
+                    if (listaCoords.length > 0 && !asignacionUsuarioId) {
+                        setAsignacionUsuarioId(listaCoords[0].id);
+                    }
                 }
                 setError(null);
             } catch (err) {
@@ -282,9 +305,10 @@ export default function SeguimientoGraduacion() {
     };
 
     const handleAsignarCoordinador = async () => {
-        const idUsuario = asignacionUsuarioId.trim() || session?.user.id || '';
+        const idUsuario =
+            asignacionUsuarioId.trim() || (session?.user.role === 'COORDINADOR' ? session.user.id : '');
         if (!idUsuario) {
-            setError('Indicá el UUID del usuario coordinador a asignar.');
+            setError('Indicá el UUID de un usuario con rol COORDINADOR para asignar.');
             return;
         }
         setError(null);
@@ -317,6 +341,37 @@ export default function SeguimientoGraduacion() {
             await cargarDatosIniciales();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'No se pudo quitar la asignación.');
+        }
+    };
+
+    const handleCrearCoordinador = async () => {
+        if (!nuevoCoordEmail.trim() || nuevoCoordPassword.length < 8) {
+            setError('Ingresá un email válido y una contraseña de al menos 8 caracteres.');
+            return;
+        }
+        setError(null);
+        setMensaje(null);
+        try {
+            const resp = await solicitar('/graduacion/coordinadores', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: nuevoCoordEmail.trim(),
+                    password: nuevoCoordPassword,
+                }),
+            });
+            if (!resp.ok) {
+                throw new Error(await extraerErrorApi(resp, 'No se pudo crear el coordinador.'));
+            }
+            const creado: CoordinadorDisponible = await resp.json();
+            setMensaje(`Coordinador ${creado.email} creado. Ya podés asignarlo a cualquier carrera.`);
+            setNuevoCoordEmail('');
+            setNuevoCoordPassword('');
+            setMostrarNuevoCoord(false);
+            setAsignacionUsuarioId(creado.id);
+            await cargarDatosIniciales();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'No se pudo crear el coordinador.');
         }
     };
 
@@ -373,25 +428,83 @@ export default function SeguimientoGraduacion() {
                             Confirmar Plan
                         </button>
                     </div>
-                    {planes.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                            {planes.map((plan) => (
-                                <span
-                                    key={plan.id}
-                                    className={`px-3 py-1 rounded-full text-xs font-semibold border ${plan.confirmado ? 'bg-green-50 text-green-800 border-green-300' : 'bg-amber-50 text-amber-800 border-amber-300'}`}
-                                >
-                                    {plan.carrera} · {plan.confirmado ? 'Confirmado' : 'Pendiente de confirmación'}
-                                </span>
-                            ))}
-                        </div>
-                    )}
+                    {(() => {
+                        const cohorteActual = cohortes.find((c) => c.id === planCohorteId);
+                        const planesDeCohorte = planCohorteId
+                            ? planes.filter((plan) => plan.cohorte_id === planCohorteId)
+                            : planes;
+                        if (planesDeCohorte.length === 0) {
+                            return (
+                                <p className="text-xs text-slate-500">
+                                    Todavía no hay planes confirmados para{' '}
+                                    <strong>{cohorteActual ? `${cohorteActual.nombre} (${cohorteActual.anio})` : 'esta cohorte'}</strong>.
+                                </p>
+                            );
+                        }
+                        return (
+                            <div className="flex flex-wrap gap-2">
+                                {planesDeCohorte.map((plan) => {
+                                    const cohortePlan = cohortes.find((c) => c.id === plan.cohorte_id);
+                                    return (
+                                        <span
+                                            key={plan.id}
+                                            className={`px-3 py-1 rounded-full text-xs font-semibold border ${plan.confirmado ? 'bg-green-50 text-green-800 border-green-300' : 'bg-amber-50 text-amber-800 border-amber-300'}`}
+                                        >
+                                            {cohortePlan ? `${cohortePlan.nombre} · ` : ''}
+                                            {plan.carrera} · {plan.confirmado ? 'Confirmado' : 'Pendiente de confirmación'}
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        );
+                    })()}
                 </section>
 
                 {/* Asignación de coordinadores por carrera (destinatarios de alertas de semáforo rojo) */}
                 <section className="border border-slate-200 rounded-lg p-5 bg-slate-50 space-y-3">
-                    <h2 className="font-bold text-sm uppercase text-slate-600">
-                        Coordinadores asignados por carrera (Destinatarios de Alertas)
-                    </h2>
+                    <div className="flex flex-wrap justify-between items-center gap-2">
+                        <h2 className="font-bold text-sm uppercase text-slate-600">
+                            Coordinadores asignados por carrera (Destinatarios de Alertas)
+                        </h2>
+                        <button
+                            type="button"
+                            onClick={() => setMostrarNuevoCoord((prev) => !prev)}
+                            className="border border-slate-800 rounded px-3 py-1 text-xs font-bold hover:bg-white"
+                        >
+                            {mostrarNuevoCoord ? 'Cerrar' : '+ Nuevo Coordinador'}
+                        </button>
+                    </div>
+                    {mostrarNuevoCoord && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end bg-white border border-slate-200 rounded p-3">
+                            <div>
+                                <label className="block text-xs font-bold mb-1 text-slate-600">Email del nuevo coordinador</label>
+                                <input
+                                    type="email"
+                                    value={nuevoCoordEmail}
+                                    onChange={(e) => setNuevoCoordEmail(e.target.value)}
+                                    placeholder="coordinador.maestria@frlp.utn.edu.ar"
+                                    className="w-full border border-slate-300 rounded p-2 text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold mb-1 text-slate-600">Contraseña inicial (mín. 8)</label>
+                                <input
+                                    type="password"
+                                    value={nuevoCoordPassword}
+                                    onChange={(e) => setNuevoCoordPassword(e.target.value)}
+                                    placeholder="Coord1234!"
+                                    className="w-full border border-slate-300 rounded p-2 text-sm"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => void handleCrearCoordinador()}
+                                className="bg-[#2a3441] text-white rounded px-4 py-2 text-sm font-semibold hover:bg-slate-700"
+                            >
+                                Crear Coordinador
+                            </button>
+                        </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                         <div>
                             <label className="block text-xs font-bold mb-1 text-slate-600">Carrera</label>
@@ -407,15 +520,23 @@ export default function SeguimientoGraduacion() {
                         </div>
                         <div>
                             <label className="block text-xs font-bold mb-1 text-slate-600">
-                                UUID de Usuario Coordinador
+                                Coordinador
                             </label>
-                            <input
-                                type="text"
+                            <select
                                 value={asignacionUsuarioId}
                                 onChange={(e) => setAsignacionUsuarioId(e.target.value)}
-                                placeholder={session?.user.id ?? 'UUID del coordinador'}
-                                className="w-full border border-slate-300 rounded p-2 text-sm bg-white font-mono"
-                            />
+                                className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
+                            >
+                                {coordinadores.length === 0 ? (
+                                    <option value="">No hay coordinadores activos</option>
+                                ) : (
+                                    coordinadores.map((coord) => (
+                                        <option key={coord.id} value={coord.id}>
+                                            {coord.email}
+                                        </option>
+                                    ))
+                                )}
+                            </select>
                         </div>
                         <button
                             type="button"
@@ -427,24 +548,33 @@ export default function SeguimientoGraduacion() {
                     </div>
                     {asignaciones.length > 0 && (
                         <div className="flex flex-wrap gap-2 pt-2">
-                            {asignaciones.map((asig) => (
-                                <span
-                                    key={asig.id}
-                                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-white border border-slate-300"
-                                >
-                                    <span>
-                                        {asig.carrera} · <code className="text-[11px]">{asig.usuario_id.slice(0, 8)}…</code>
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() => void handleQuitarAsignacion(asig.id)}
-                                        className="text-red-700 hover:underline font-bold"
-                                        title="Quitar asignación"
+                            {asignaciones.map((asig) => {
+                                const coordEncontrado = coordinadores.find((c) => c.id === asig.usuario_id);
+                                const esUsuarioActual = asig.usuario_id === session?.user.id;
+                                const etiquetaUsuario = coordEncontrado
+                                    ? `${coordEncontrado.email}${esUsuarioActual ? ' (vos)' : ''}`
+                                    : esUsuarioActual
+                                      ? `${session.user.email} (vos)`
+                                      : `${asig.usuario_id.slice(0, 8)}…`;
+                                return (
+                                    <span
+                                        key={asig.id}
+                                        className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-white border border-slate-300"
                                     >
-                                        ✕
-                                    </button>
-                                </span>
-                            ))}
+                                        <span>
+                                            {asig.carrera} · <span className="text-slate-700">{etiquetaUsuario}</span>
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleQuitarAsignacion(asig.id)}
+                                            className="text-red-700 hover:underline font-bold"
+                                            title="Quitar asignación"
+                                        >
+                                            ✕
+                                        </button>
+                                    </span>
+                                );
+                            })}
                         </div>
                     )}
                 </section>

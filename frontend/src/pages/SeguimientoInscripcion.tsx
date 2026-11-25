@@ -19,8 +19,10 @@ const TIPOS_DOCUMENTO = [
 export default function SeguimientoInscripcion() {
     const [searchParams] = useSearchParams();
 
-    const [legajoId, setLegajoId] = useState(() => searchParams.get('id') ?? '');
-    const [tokenPropietario, setTokenPropietario] = useState('');
+    const [identificador, setIdentificador] = useState(
+        () => searchParams.get('email') ?? searchParams.get('dni') ?? '',
+    );
+    const [codigoAcceso, setCodigoAcceso] = useState(() => searchParams.get('codigo') ?? '');
     const [detalle, setDetalle] = useState<LegajoDetalle | null>(null);
     const [seminarios, setSeminarios] = useState<ResultadoSeminarioLegajo[]>([]);
     const [cargando, setCargando] = useState(false);
@@ -32,37 +34,40 @@ export default function SeguimientoInscripcion() {
     const [archivoSubir, setArchivoSubir] = useState<File | null>(null);
     const [subiendoDoc, setSubiendoDoc] = useState(false);
 
-    // Confirmación de corrección de legajo observado
-    const [tokenCorreccion, setTokenCorreccion] = useState('');
+    // Confirmación de corrección de legajo observado (código corto de 72 hs)
+    const [codigoCorreccion, setCodigoCorreccion] = useState('');
     const [enviandoCorreccion, setEnviandoCorreccion] = useState(false);
 
     useEffect(() => {
         document.title = 'Seguimiento de Inscripción | Sistema de Posgrado';
     }, []);
 
-    const consultarLegajo = useCallback(async (id: string, token: string) => {
-        const idLimpio = id.trim();
-        const tokenLimpio = token.trim();
-        if (!idLimpio || !tokenLimpio) {
-            setError('Ingresá tanto el código de seguimiento como el token de acceso recibido por correo.');
+    const consultarLegajo = useCallback(async (idCorreoDni: string, codigo: string) => {
+        const identificadorLimpio = idCorreoDni.trim();
+        const codigoLimpio = codigo.trim();
+        if (!identificadorLimpio || !codigoLimpio) {
+            setError('Ingresá tu email o DNI y el código de acceso recibido por correo.');
             return;
         }
         setCargando(true);
         setError(null);
         try {
-            const headers = {
-                Authorization: `Bearer ${tokenLimpio}`,
-                Accept: 'application/json',
-            };
-            const [respLegajo, respSeminarios] = await Promise.all([
-                fetch(`${API_URL}/legajos/${idLimpio}`, { headers }),
-                fetch(`${API_URL}/legajos/${idLimpio}/seminarios`, { headers }),
-            ]);
+            const respLegajo = await fetch(`${API_URL}/legajos/seguimiento`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify({
+                    identificador: identificadorLimpio,
+                    codigo: codigoLimpio,
+                }),
+            });
             if (!respLegajo.ok) {
                 throw new Error(
                     await extraerErrorApi(
                         respLegajo,
-                        'No se pudo consultar el legajo. Verificá el código de seguimiento y el token de propietario.',
+                        'No se pudo consultar el legajo. Verificá tu email/DNI y el código de acceso.',
                     ),
                 );
             }
@@ -71,6 +76,12 @@ export default function SeguimientoInscripcion() {
             if (datosLegajo.documentos_faltantes.length > 0) {
                 setTipoDocSubir(datosLegajo.documentos_faltantes[0]);
             }
+            const respSeminarios = await fetch(`${API_URL}/legajos/${datosLegajo.id}/seminarios`, {
+                headers: {
+                    Authorization: `Bearer ${codigoLimpio}`,
+                    Accept: 'application/json',
+                },
+            });
             if (respSeminarios.ok) {
                 setSeminarios(await respSeminarios.json());
             } else {
@@ -88,14 +99,14 @@ export default function SeguimientoInscripcion() {
     const handleSubmitConsulta = (e: FormEvent) => {
         e.preventDefault();
         setMensaje(null);
-        void consultarLegajo(legajoId, tokenPropietario);
+        void consultarLegajo(identificador, codigoAcceso);
     };
 
     const handleDescargarDocumento = async (docId: string, tipo: string) => {
         setError(null);
         try {
             const resp = await fetch(`${API_URL}/documentos/${docId}/download`, {
-                headers: { Authorization: `Bearer ${tokenPropietario.trim()}` },
+                headers: { Authorization: `Bearer ${codigoAcceso.trim()}` },
             });
             if (!resp.ok) {
                 throw new Error(await extraerErrorApi(resp, 'No se pudo descargar el documento.'));
@@ -122,7 +133,7 @@ export default function SeguimientoInscripcion() {
             formData.append('archivo', archivoSubir);
             const resp = await fetch(`${API_URL}/legajos/${detalle.id}/documentos`, {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${tokenPropietario.trim()}` },
+                headers: { Authorization: `Bearer ${codigoAcceso.trim()}` },
                 body: formData,
             });
             if (!resp.ok) {
@@ -134,7 +145,7 @@ export default function SeguimientoInscripcion() {
                     : `Documento ${tipoDocSubir} reemplazado correctamente.`,
             );
             setArchivoSubir(null);
-            await consultarLegajo(detalle.id, tokenPropietario);
+            await consultarLegajo(identificador, codigoAcceso);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'No se pudo cargar el documento PDF.');
         } finally {
@@ -144,29 +155,36 @@ export default function SeguimientoInscripcion() {
 
     const handleEnviarCorreccion = async (e: FormEvent) => {
         e.preventDefault();
-        const idDestino = (detalle?.id ?? legajoId).trim();
-        if (!idDestino || !tokenCorreccion.trim()) {
-            setError('Ingresá el código de seguimiento y el token de corrección de un solo uso.');
+        const codigoLimpio = codigoCorreccion.trim();
+        const idCorreoDni = (detalle?.email ?? identificador).trim();
+        if (!codigoLimpio || (!detalle && !idCorreoDni)) {
+            setError('Ingresá tu email o DNI (en el formulario superior) y el código de corrección de 72 hs.');
             return;
         }
         setEnviandoCorreccion(true);
         setError(null);
         setMensaje(null);
         try {
-            const resp = await fetch(`${API_URL}/legajos/${idDestino}/correccion`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-                body: JSON.stringify({ token: tokenCorreccion.trim() }),
-            });
+            const resp = detalle
+                ? await fetch(`${API_URL}/legajos/${detalle.id}/correccion`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                      body: JSON.stringify({ token: codigoLimpio }),
+                  })
+                : await fetch(`${API_URL}/legajos/correccion`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                      body: JSON.stringify({ identificador: idCorreoDni, token: codigoLimpio }),
+                  });
             if (!resp.ok) {
                 throw new Error(
-                    await extraerErrorApi(resp, 'El token de corrección es inválido, ya fue utilizado o venció.'),
+                    await extraerErrorApi(resp, 'El código de corrección es inválido, ya fue utilizado o venció.'),
                 );
             }
             setMensaje('Corrección enviada con éxito. Tu legajo volvió al estado Pendiente para revisión.');
-            setTokenCorreccion('');
-            if (tokenPropietario.trim()) {
-                await consultarLegajo(idDestino, tokenPropietario);
+            setCodigoCorreccion('');
+            if (identificador.trim() && codigoAcceso.trim()) {
+                await consultarLegajo(identificador, codigoAcceso);
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'No se pudo enviar la corrección.');
@@ -202,34 +220,34 @@ export default function SeguimientoInscripcion() {
                     onSubmit={handleSubmitConsulta}
                     className="border border-slate-200 bg-slate-50 rounded-lg p-6 space-y-4"
                 >
-                    <h2 className="font-bold text-sm uppercase text-slate-600">Consultar estado con token de propietario</h2>
+                    <h2 className="font-bold text-sm uppercase text-slate-600">Consultar estado de inscripción</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label htmlFor="codigo-seguimiento" className="block text-xs font-bold mb-1">
-                                Código de seguimiento (UUID del legajo)
+                            <label htmlFor="identificador-seguimiento" className="block text-xs font-bold mb-1">
+                                Email o DNI
                             </label>
                             <input
-                                id="codigo-seguimiento"
+                                id="identificador-seguimiento"
                                 type="text"
                                 required
-                                value={legajoId}
-                                onChange={(e) => setLegajoId(e.target.value)}
-                                placeholder="Ej: 550e8400-e29b-41d4-a716-446655440000"
-                                className="w-full border border-slate-300 rounded p-2 text-sm bg-white font-mono"
+                                value={identificador}
+                                onChange={(e) => setIdentificador(e.target.value)}
+                                placeholder="Ej: alumno@mail.com o 38123456"
+                                className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
                             />
                         </div>
                         <div>
-                            <label htmlFor="token-propietario" className="block text-xs font-bold mb-1">
-                                Token privado de propietario (recibido por email)
+                            <label htmlFor="codigo-acceso" className="block text-xs font-bold mb-1">
+                                Código de acceso (recibido por email)
                             </label>
                             <input
-                                id="token-propietario"
-                                type="password"
+                                id="codigo-acceso"
+                                type="text"
                                 required
-                                value={tokenPropietario}
-                                onChange={(e) => setTokenPropietario(e.target.value)}
-                                placeholder="Pegá el token recibido en el correo de confirmación..."
-                                className="w-full border border-slate-300 rounded p-2 text-sm bg-white"
+                                value={codigoAcceso}
+                                onChange={(e) => setCodigoAcceso(e.target.value)}
+                                placeholder="Ej: A7K3-9M2P"
+                                className="w-full border border-slate-300 rounded p-2 text-sm bg-white font-mono uppercase"
                             />
                         </div>
                     </div>
@@ -404,38 +422,38 @@ export default function SeguimientoInscripcion() {
                     </section>
                 )}
 
-                {/* Confirmación de corrección con token de un solo uso (Observado -> Pendiente) */}
+                {/* Confirmación de corrección con código de un solo uso (Observado -> Pendiente) */}
                 <form
                     onSubmit={(e) => void handleEnviarCorreccion(e)}
                     className="border border-slate-200 bg-slate-50 rounded-lg p-6 space-y-4"
                 >
                     <div>
                         <h2 className="font-bold text-sm uppercase text-slate-600">
-                            Confirmar corrección de legajo observado (Token de 72 hs)
+                            Confirmar corrección de legajo observado (Código de 72 hs)
                         </h2>
                         <p className="text-xs text-slate-500 mt-1">
-                            Si tu legajo fue observado y recibiste por correo un token de corrección de un solo uso,
+                            Si tu legajo fue observado y recibiste por correo un código de corrección de un solo uso,
                             ingresalo aquí una vez actualizados los documentos para devolver el legajo al estado Pendiente.
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-3 items-end">
                         <div className="flex-1 min-w-[260px]">
-                            <label htmlFor="token-correccion" className="block text-xs font-bold mb-1">
-                                Token de corrección de un solo uso
+                            <label htmlFor="codigo-correccion" className="block text-xs font-bold mb-1">
+                                Código de corrección de un solo uso (72 hs)
                             </label>
                             <input
-                                id="token-correccion"
+                                id="codigo-correccion"
                                 type="text"
                                 required
-                                value={tokenCorreccion}
-                                onChange={(e) => setTokenCorreccion(e.target.value)}
-                                placeholder="Pegá el token de corrección recibido en el email de observación..."
-                                className="w-full border border-slate-300 rounded p-2 text-sm bg-white font-mono"
+                                value={codigoCorreccion}
+                                onChange={(e) => setCodigoCorreccion(e.target.value)}
+                                placeholder="Ej: C4R8-7T2N"
+                                className="w-full border border-slate-300 rounded p-2 text-sm bg-white font-mono uppercase"
                             />
                         </div>
                         <button
                             type="submit"
-                            disabled={enviandoCorreccion || !legajoId.trim() || !tokenCorreccion.trim()}
+                            disabled={enviandoCorreccion || (!detalle && !identificador.trim()) || !codigoCorreccion.trim()}
                             className="border-2 border-slate-800 px-5 py-2 rounded text-sm font-bold hover:bg-white disabled:opacity-50"
                         >
                             {enviandoCorreccion ? 'Enviando...' : 'Confirmar corrección'}

@@ -455,13 +455,14 @@ export default function InscripcionAspirante() {
                 {inscripcionEnviada ? (
                     <section role="status" className="rounded border border-green-300 bg-green-50 p-6 text-center">
                         <h3 className="mb-2 text-xl font-bold text-green-800">Inscripción recibida</h3>
-                        <p>{inscripcionEnviada.mensaje}. El estado inicial es {inscripcionEnviada.estado}.</p>
-                        <p className="mt-4 font-semibold">Código de seguimiento</p>
-                        <p className="break-all font-mono">{inscripcionEnviada.codigo_seguimiento}</p>
-                        <p className="mt-3 text-sm">Guardá este código para consultar tu inscripción.</p>
+                        <p>{inscripcionEnviada.mensaje}. El estado inicial es <strong>{inscripcionEnviada.estado}</strong>.</p>
+                        <p className="mt-3 text-sm text-slate-700">
+                            Podés verificar el estado de tu inscripción ingresando con tu email (o DNI) y el código de
+                            acceso que se envió a tu correo electrónico.
+                        </p>
                         <div className="mt-4">
                             <Link
-                                to={`/seguimiento?id=${encodeURIComponent(inscripcionEnviada.codigo_seguimiento)}`}
+                                to="/seguimiento"
                                 className="inline-block rounded bg-[#2a3441] px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700"
                             >
                                 Ir a Seguimiento de Inscripción →

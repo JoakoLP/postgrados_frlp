@@ -204,6 +204,23 @@ def quitar_asignacion(
     return Response(status_code=204)
 
 
+@router.get("/legajos/{id}/avances-tesis", response_model=list[AvanceRespuesta])
+def listar_avances_tesis(
+    id: UUID,
+    session: Session = Depends(get_db),
+    _: User = Depends(requerir_roles("CPR", "COORDINADOR")),
+) -> list[AvanceTesis]:
+    if session.get(Legajo, id) is None:
+        raise HTTPException(status_code=404, detail="No se encontró el legajo")
+    return list(
+        session.scalars(
+            select(AvanceTesis)
+            .where(AvanceTesis.legajo_id == id)
+            .order_by(AvanceTesis.fecha.desc(), AvanceTesis.id)
+        )
+    )
+
+
 @router.post("/legajos/{id}/avances-tesis", response_model=AvanceRespuesta, status_code=201)
 def registrar_avance_tesis(
     id: UUID,
